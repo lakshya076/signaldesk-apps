@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -197,7 +198,7 @@ class ClosedTradeCardViewModel {
 
 // --- API Service ---
 class ApiService {
-  final String _apiBaseUrl = 'https://10f74868147a.ngrok-free.app';
+  final String _apiBaseUrl = 'https://8daec68513f2.ngrok-free.app';
 
   Future<Map<String, double>> getLivePrices(List<String> symbols) async {
     if (symbols.isEmpty) return {};
@@ -209,7 +210,7 @@ class ApiService {
     if (response.statusCode == 200) {
       final decoded = json.decode(response.body);
       return (decoded['data'] as Map<String, dynamic>).map(
-            (key, value) => MapEntry(key, (value as num).toDouble()),
+        (key, value) => MapEntry(key, (value as num).toDouble()),
       );
     } else {
       throw Exception('Failed to load live prices');
@@ -390,31 +391,23 @@ class UserApp extends StatelessWidget {
 
 // --- Authentication Flow ---
 class AuthGate extends StatefulWidget {
-  const AuthGate({super.key});
+  const AuthGate({Key? key}) : super(key: key);
 
   @override
   State<AuthGate> createState() => _AuthGateState();
 }
 
 class _AuthGateState extends State<AuthGate> {
-  var _futureBuilderKey = UniqueKey();
-
   Future<Map<String, dynamic>?> _getProfileData() async {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return null;
     final response =
-    await Supabase.instance.client
-        .from('profiles')
-        .select('role, first_name')
-        .eq('id', user.id)
-        .maybeSingle();
+        await Supabase.instance.client
+            .from('profiles')
+            .select('role')
+            .eq('id', user.id)
+            .maybeSingle();
     return response;
-  }
-
-  void _onProfileCompleted() {
-    setState(() {
-      _futureBuilderKey = UniqueKey();
-    });
   }
 
   @override
@@ -424,7 +417,6 @@ class _AuthGateState extends State<AuthGate> {
       builder: (context, snapshot) {
         if (snapshot.hasData && snapshot.data?.session != null) {
           return FutureBuilder<Map<String, dynamic>?>(
-            key: _futureBuilderKey,
             future: _getProfileData(),
             builder: (context, profileSnapshot) {
               if (profileSnapshot.connectionState == ConnectionState.waiting) {
@@ -433,11 +425,10 @@ class _AuthGateState extends State<AuthGate> {
                 );
               }
               final profile = profileSnapshot.data;
-              if (profile == null || profile['first_name'] == null) {
-                return AdditionalDetailsScreen(
-                  onProfileSaved: _onProfileCompleted,
-                );
+              if (profile == null) {
+                return const LoginScreen(); // Fallback to login if profile doesn't exist
               }
+
               if (profile['role'] == 'user') {
                 return const UserMainScreen();
               } else {
@@ -475,11 +466,11 @@ class _UserMainScreenState extends State<UserMainScreen> {
     if (user != null) {
       try {
         final response =
-        await Supabase.instance.client
-            .from('profiles')
-            .select('first_name')
-            .eq('id', user.id)
-            .single();
+            await Supabase.instance.client
+                .from('profiles')
+                .select('first_name')
+                .eq('id', user.id)
+                .single();
         if (mounted && response['first_name'] != null) {
           setState(() {
             _userName = response['first_name'];
@@ -517,7 +508,7 @@ class _UserMainScreenState extends State<UserMainScreen> {
       'Advisors',
     ];
     final appBarTitle =
-    _selectedIndex == 0 ? 'Hi, $_userName' : titles[_selectedIndex];
+        _selectedIndex == 0 ? 'Hi, $_userName' : titles[_selectedIndex];
 
     return Scaffold(
       appBar: AppBar(
@@ -539,9 +530,9 @@ class _UserMainScreenState extends State<UserMainScreen> {
             icon: const Icon(Icons.brightness_6),
             onPressed: () async {
               final newMode =
-              themeNotifier.value == ThemeMode.light
-                  ? ThemeMode.dark
-                  : ThemeMode.light;
+                  themeNotifier.value == ThemeMode.light
+                      ? ThemeMode.dark
+                      : ThemeMode.light;
               themeNotifier.value = newMode;
               final prefs = await SharedPreferences.getInstance();
               await prefs.setBool('isDarkMode', newMode == ThemeMode.dark);
@@ -614,13 +605,13 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
       _tradesChannel = Supabase.instance.client.channel(channelName);
       _tradesChannel!
           .onPostgresChanges(
-        event: PostgresChangeEvent.all,
-        schema: 'public',
-        table: 'trade_cards',
-        callback: (payload) {
-          if (mounted) _fetchTradeCards();
-        },
-      )
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'trade_cards',
+            callback: (payload) {
+              if (mounted) _fetchTradeCards();
+            },
+          )
           .subscribe();
     } catch (e) {
       debugPrint('Error setting up realtime subscription: $e');
@@ -698,7 +689,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     if (_activeTrades.isEmpty || !mounted) return;
     try {
       final symbols =
-      _activeTrades.map((card) => card.stockSymbol).toSet().toList();
+          _activeTrades.map((card) => card.stockSymbol).toSet().toList();
       if (symbols.isEmpty) return;
       final prices = await _apiService.getLivePrices(symbols);
       if (mounted) setState(() => _livePrices = prices);
@@ -717,18 +708,18 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     return RefreshIndicator(
       onRefresh: _refresh,
       child:
-      _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-        padding: const EdgeInsets.all(16.0),
-        children: [
-          _buildSectionHeader('Active Trades', widget.onViewActive),
-          _buildTradeList(_activeTrades, true),
-          const SizedBox(height: 24),
-          _buildSectionHeader('Closed Trades', widget.onViewClosed),
-          _buildTradeList(_closedTrades, false),
-        ],
-      ),
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : ListView(
+                padding: const EdgeInsets.all(16.0),
+                children: [
+                  _buildSectionHeader('Active Trades', widget.onViewActive),
+                  _buildTradeList(_activeTrades, true),
+                  const SizedBox(height: 24),
+                  _buildSectionHeader('Closed Trades', widget.onViewClosed),
+                  _buildTradeList(_closedTrades, false),
+                ],
+              ),
     );
   }
 
@@ -759,26 +750,26 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     final displayTrades = trades.take(3).toList();
     return Column(
       children:
-      displayTrades.map((trade) {
-        if (isActive) {
-          final livePrice =
-              _livePrices[trade.stockSymbol] ?? trade.lastPrice;
-          final viewModel = ActiveTradeCardViewModel(
-            trade: trade,
-            currentPrice: livePrice,
-          );
-          return Padding(
-            padding: const EdgeInsets.only(top: 16.0),
-            child: ActiveTradeCardWidget(trade: viewModel),
-          );
-        } else {
-          final viewModel = ClosedTradeCardViewModel(trade: trade);
-          return Padding(
-            padding: const EdgeInsets.only(top: 16.0),
-            child: ClosedTradeCardWidget(trade: viewModel),
-          );
-        }
-      }).toList(),
+          displayTrades.map((trade) {
+            if (isActive) {
+              final livePrice =
+                  _livePrices[trade.stockSymbol] ?? trade.lastPrice;
+              final viewModel = ActiveTradeCardViewModel(
+                trade: trade,
+                currentPrice: livePrice,
+              );
+              return Padding(
+                padding: const EdgeInsets.only(top: 16.0),
+                child: ActiveTradeCardWidget(trade: viewModel),
+              );
+            } else {
+              final viewModel = ClosedTradeCardViewModel(trade: trade);
+              return Padding(
+                padding: const EdgeInsets.only(top: 16.0),
+                child: ClosedTradeCardWidget(trade: viewModel),
+              );
+            }
+          }).toList(),
     );
   }
 }
@@ -814,18 +805,18 @@ class _UserActiveTradesScreenState extends State<UserActiveTradesScreen> {
     );
     _tradesChannel!
         .onPostgresChanges(
-      event: PostgresChangeEvent.all,
-      schema: 'public',
-      table: 'trade_cards',
-      filter: PostgresChangeFilter(
-        type: PostgresChangeFilterType.eq,
-        column: 'status',
-        value: 'open',
-      ),
-      callback: (payload) {
-        if (mounted) _fetchInitialTradeCards();
-      },
-    )
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'trade_cards',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'status',
+            value: 'open',
+          ),
+          callback: (payload) {
+            if (mounted) _fetchInitialTradeCards();
+          },
+        )
         .subscribe();
   }
 
@@ -891,7 +882,7 @@ class _UserActiveTradesScreenState extends State<UserActiveTradesScreen> {
     _timer?.cancel();
     _timer = Timer.periodic(
       const Duration(seconds: 5),
-          (timer) => _updateLivePrices(),
+      (timer) => _updateLivePrices(),
     );
     _updateLivePrices();
   }
@@ -900,7 +891,7 @@ class _UserActiveTradesScreenState extends State<UserActiveTradesScreen> {
     if (_tradeCards.isEmpty || !mounted) return;
     try {
       final symbols =
-      _tradeCards.map((card) => card.stockSymbol).toSet().toList();
+          _tradeCards.map((card) => card.stockSymbol).toSet().toList();
       if (symbols.isEmpty) return;
       final prices = await _apiService.getLivePrices(symbols);
       if (mounted) {
@@ -923,13 +914,13 @@ class _UserActiveTradesScreenState extends State<UserActiveTradesScreen> {
 
   void _filterAndRefresh() {
     final allViewModels =
-    _tradeCards.map((trade) {
-      final livePrice = _livePrices[trade.stockSymbol] ?? trade.lastPrice;
-      return ActiveTradeCardViewModel(
-        trade: trade,
-        currentPrice: livePrice,
-      );
-    }).toList();
+        _tradeCards.map((trade) {
+          final livePrice = _livePrices[trade.stockSymbol] ?? trade.lastPrice;
+          return ActiveTradeCardViewModel(
+            trade: trade,
+            currentPrice: livePrice,
+          );
+        }).toList();
     if (_selectedFilter == 'All') {
       _filteredTradeCards = allViewModels;
     } else {
@@ -958,27 +949,27 @@ class _UserActiveTradesScreenState extends State<UserActiveTradesScreen> {
         ),
         Expanded(
           child:
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : _filteredTradeCards.isEmpty
-              ? Center(
-            child: Text(
-              _tradeCards.isEmpty
-                  ? 'No active trades from your advisors.'
-                  : 'No trades match the filter.',
-            ),
-          )
-              : ListView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            itemCount: _filteredTradeCards.length,
-            itemBuilder: (context, index) {
-              final viewModel = _filteredTradeCards[index];
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 16.0),
-                child: ActiveTradeCardWidget(trade: viewModel),
-              );
-            },
-          ),
+              _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _filteredTradeCards.isEmpty
+                  ? Center(
+                    child: Text(
+                      _tradeCards.isEmpty
+                          ? 'No active trades from your advisors.'
+                          : 'No trades match the filter.',
+                    ),
+                  )
+                  : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    itemCount: _filteredTradeCards.length,
+                    itemBuilder: (context, index) {
+                      final viewModel = _filteredTradeCards[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 16.0),
+                        child: ActiveTradeCardWidget(trade: viewModel),
+                      );
+                    },
+                  ),
         ),
       ],
     );
@@ -1013,28 +1004,28 @@ class _UserClosedTradesScreenState extends State<UserClosedTradesScreen> {
     );
     _tradesChannel!
         .onPostgresChanges(
-      event: PostgresChangeEvent.all,
-      schema: 'public',
-      table: 'trade_cards',
-      callback: (payload) {
-        final newData = payload.newRecord;
-        final oldData = payload.oldRecord;
-        bool shouldRefresh = false;
-        if (payload.eventType == PostgresChangeEvent.insert ||
-            payload.eventType == PostgresChangeEvent.update) {
-          if (newData['status'] != 'open') {
-            shouldRefresh = true;
-          }
-        } else if (payload.eventType == PostgresChangeEvent.delete) {
-          if (oldData['status'] != 'open') {
-            shouldRefresh = true;
-          }
-        }
-        if (shouldRefresh && mounted) {
-          _fetchInitialClosedTrades();
-        }
-      },
-    )
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'trade_cards',
+          callback: (payload) {
+            final newData = payload.newRecord;
+            final oldData = payload.oldRecord;
+            bool shouldRefresh = false;
+            if (payload.eventType == PostgresChangeEvent.insert ||
+                payload.eventType == PostgresChangeEvent.update) {
+              if (newData['status'] != 'open') {
+                shouldRefresh = true;
+              }
+            } else if (payload.eventType == PostgresChangeEvent.delete) {
+              if (oldData['status'] != 'open') {
+                shouldRefresh = true;
+              }
+            }
+            if (shouldRefresh && mounted) {
+              _fetchInitialClosedTrades();
+            }
+          },
+        )
         .subscribe();
   }
 
@@ -1103,9 +1094,9 @@ class _UserClosedTradesScreenState extends State<UserClosedTradesScreen> {
 
   void _filterAndRefresh() {
     final allViewModels =
-    _tradeCards
-        .map((trade) => ClosedTradeCardViewModel(trade: trade))
-        .toList();
+        _tradeCards
+            .map((trade) => ClosedTradeCardViewModel(trade: trade))
+            .toList();
     if (_selectedFilter == 'All') {
       _filteredTradeCards = allViewModels;
     } else {
@@ -1139,27 +1130,27 @@ class _UserClosedTradesScreenState extends State<UserClosedTradesScreen> {
         ),
         Expanded(
           child:
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : _filteredTradeCards.isEmpty
-              ? Center(
-            child: Text(
-              _tradeCards.isEmpty
-                  ? 'No closed trades from your advisors.'
-                  : 'No trades match the filter.',
-            ),
-          )
-              : ListView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            itemCount: _filteredTradeCards.length,
-            itemBuilder: (context, index) {
-              final viewModel = _filteredTradeCards[index];
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 16.0),
-                child: ClosedTradeCardWidget(trade: viewModel),
-              );
-            },
-          ),
+              _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _filteredTradeCards.isEmpty
+                  ? Center(
+                    child: Text(
+                      _tradeCards.isEmpty
+                          ? 'No closed trades from your advisors.'
+                          : 'No trades match the filter.',
+                    ),
+                  )
+                  : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    itemCount: _filteredTradeCards.length,
+                    itemBuilder: (context, index) {
+                      final viewModel = _filteredTradeCards[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 16.0),
+                        child: ClosedTradeCardWidget(trade: viewModel),
+                      );
+                    },
+                  ),
         ),
       ],
     );
@@ -1215,7 +1206,7 @@ class _AdvisorsScreenState extends State<AdvisorsScreen>
       final allAdvisors = responses[0] as List;
       final subscriptions = responses[1] as List;
       final subscribedIds =
-      subscriptions.map((sub) => sub['advisor_id'] as String).toSet();
+          subscriptions.map((sub) => sub['advisor_id'] as String).toSet();
       if (mounted) {
         setState(() {
           _subscribedAdvisors =
@@ -1240,9 +1231,9 @@ class _AdvisorsScreenState extends State<AdvisorsScreen>
   }
 
   Future<void> _handleSubscriptionChange(
-      String advisorId,
-      bool isSubscribing,
-      ) async {
+    String advisorId,
+    bool isSubscribing,
+  ) async {
     try {
       final userId = Supabase.instance.client.auth.currentUser!.id;
       if (isSubscribing) {
@@ -1277,47 +1268,47 @@ class _AdvisorsScreenState extends State<AdvisorsScreen>
         ),
       ),
       body:
-      _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : TabBarView(
-        controller: _tabController,
-        children: [
-          _AdvisorList(
-            advisors: _subscribedAdvisors,
-            isSubscribedList: true,
-            onSubscriptionChange:
-                (advisorId) =>
-                _handleSubscriptionChange(advisorId, false),
-          ),
-          _AdvisorList(
-            advisors: _discoverAdvisors,
-            isSubscribedList: false,
-            onSubscriptionChange:
-                (advisorId) =>
-                _handleSubscriptionChange(advisorId, true),
-          ),
-        ],
-      ),
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : TabBarView(
+                controller: _tabController,
+                children: [
+                  _AdvisorList(
+                    advisors: _subscribedAdvisors,
+                    isSubscribedList: true,
+                    onSubscriptionChange:
+                        (advisorId) =>
+                            _handleSubscriptionChange(advisorId, false),
+                  ),
+                  _AdvisorList(
+                    advisors: _discoverAdvisors,
+                    isSubscribedList: false,
+                    onSubscriptionChange:
+                        (advisorId) =>
+                            _handleSubscriptionChange(advisorId, true),
+                  ),
+                ],
+              ),
       floatingActionButton:
-      _showFab
-          ? FloatingActionButton(
-        onPressed: () async {
-          await showModalBottomSheet<bool>(
-            context: context,
-            isScrollControlled: true,
-            backgroundColor: Colors.transparent,
-            builder:
-                (context) => SearchAdvisorsScreen(
-              discoverAdvisors: _discoverAdvisors,
-              onSubscribe:
-                  (advisorId) =>
-                  _handleSubscriptionChange(advisorId, true),
-            ),
-          );
-        },
-        child: const Icon(Icons.search),
-      )
-          : null,
+          _showFab
+              ? FloatingActionButton(
+                onPressed: () async {
+                  await showModalBottomSheet<bool>(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder:
+                        (context) => SearchAdvisorsScreen(
+                          discoverAdvisors: _discoverAdvisors,
+                          onSubscribe:
+                              (advisorId) =>
+                                  _handleSubscriptionChange(advisorId, true),
+                        ),
+                  );
+                },
+                child: const Icon(Icons.search),
+              )
+              : null,
     );
   }
 }
@@ -1356,12 +1347,12 @@ class _AdvisorList extends StatelessWidget {
         final advisor = advisors[index];
         final advisorId = advisor['id'] as String;
         final fullName =
-        '${advisor['first_name'] ?? ''} ${advisor['last_name'] ?? ''}'
-            .trim();
+            '${advisor['first_name'] ?? ''} ${advisor['last_name'] ?? ''}'
+                .trim();
         final initial =
-        (advisor['first_name'] ?? '?').isNotEmpty
-            ? advisor['first_name'][0].toUpperCase()
-            : '?';
+            (advisor['first_name'] ?? '?').isNotEmpty
+                ? advisor['first_name'][0].toUpperCase()
+                : '?';
 
         return SizedBox(
           height: 72.0,
@@ -1389,12 +1380,12 @@ class _AdvisorList extends StatelessWidget {
                   ElevatedButton(
                     onPressed: () => onSubscriptionChange(advisorId),
                     style:
-                    isSubscribedList
-                        ? ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey,
-                      foregroundColor: Colors.white,
-                    )
-                        : null,
+                        isSubscribedList
+                            ? ElevatedButton.styleFrom(
+                              backgroundColor: Colors.grey,
+                              foregroundColor: Colors.white,
+                            )
+                            : null,
                     child: Text(isSubscribedList ? 'Unsubscribe' : 'Subscribe'),
                   ),
                 ],
@@ -1442,14 +1433,14 @@ class _SearchAdvisorsScreenState extends State<SearchAdvisorsScreen> {
     final query = _searchController.text.toUpperCase();
     setState(() {
       _searchResults =
-      query.isEmpty
-          ? widget.discoverAdvisors
-          : widget.discoverAdvisors.where((advisor) {
-        final fullName =
-        '${advisor['first_name'] ?? ''} ${advisor['last_name'] ?? ''}'
-            .toUpperCase();
-        return fullName.contains(query);
-      }).toList();
+          query.isEmpty
+              ? widget.discoverAdvisors
+              : widget.discoverAdvisors.where((advisor) {
+                final fullName =
+                    '${advisor['first_name'] ?? ''} ${advisor['last_name'] ?? ''}'
+                        .toUpperCase();
+                return fullName.contains(query);
+              }).toList();
     });
   }
 
@@ -1481,63 +1472,63 @@ class _SearchAdvisorsScreenState extends State<SearchAdvisorsScreen> {
               ),
               Expanded(
                 child:
-                _searchResults.isEmpty
-                    ? const Center(child: Text("No advisors found"))
-                    : ListView.builder(
-                  controller: controller,
-                  itemCount: _searchResults.length,
-                  itemBuilder: (context, index) {
-                    final advisor = _searchResults[index];
-                    final fullName =
-                    '${advisor['first_name'] ?? ''} ${advisor['last_name'] ?? ''}'
-                        .trim();
-                    final initial =
-                    (advisor['first_name'] ?? '?').isNotEmpty
-                        ? advisor['first_name'][0].toUpperCase()
-                        : '?';
+                    _searchResults.isEmpty
+                        ? const Center(child: Text("No advisors found"))
+                        : ListView.builder(
+                          controller: controller,
+                          itemCount: _searchResults.length,
+                          itemBuilder: (context, index) {
+                            final advisor = _searchResults[index];
+                            final fullName =
+                                '${advisor['first_name'] ?? ''} ${advisor['last_name'] ?? ''}'
+                                    .trim();
+                            final initial =
+                                (advisor['first_name'] ?? '?').isNotEmpty
+                                    ? advisor['first_name'][0].toUpperCase()
+                                    : '?';
 
-                    return SizedBox(
-                      height: 72.0,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16.0,
-                        ),
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              backgroundColor: theme.colorScheme.primary
-                                  .withOpacity(0.1),
-                              foregroundColor:
-                              theme.colorScheme.primary,
-                              child: Text(
-                                initial,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
+                            return SizedBox(
+                              height: 72.0,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16.0,
+                                ),
+                                child: Row(
+                                  children: [
+                                    CircleAvatar(
+                                      backgroundColor: theme.colorScheme.primary
+                                          .withOpacity(0.1),
+                                      foregroundColor:
+                                          theme.colorScheme.primary,
+                                      child: Text(
+                                        initial,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Text(
+                                        fullName,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                    ElevatedButton(
+                                      onPressed: () {
+                                        widget.onSubscribe(advisor['id']);
+                                        Navigator.pop(context, true);
+                                      },
+                                      child: const Text('Subscribe'),
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Text(
-                                fullName,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                            ElevatedButton(
-                              onPressed: () {
-                                widget.onSubscribe(advisor['id']);
-                                Navigator.pop(context, true);
-                              },
-                              child: const Text('Subscribe'),
-                            ),
-                          ],
+                            );
+                          },
                         ),
-                      ),
-                    );
-                  },
-                ),
               ),
             ],
           ),
@@ -1580,11 +1571,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       // Fetch profile data (name, email)
       final profileResponse =
-      await Supabase.instance.client
-          .from('profiles')
-          .select('first_name, last_name, email')
-          .eq('id', user.id)
-          .single();
+          await Supabase.instance.client
+              .from('profiles')
+              .select('first_name, last_name, email')
+              .eq('id', user.id)
+              .single();
 
       final firstName = profileResponse['first_name'] ?? '';
       final lastName = profileResponse['last_name'] ?? '';
@@ -1596,9 +1587,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .eq('user_id', user.id);
 
       final advisorIds =
-      (subscriptionsResponse as List)
-          .map((sub) => sub['advisor_id'] as String)
-          .toList();
+          (subscriptionsResponse as List)
+              .map((sub) => sub['advisor_id'] as String)
+              .toList();
 
       List<dynamic> advisors = [];
       if (advisorIds.isNotEmpty) {
@@ -1653,100 +1644,100 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ],
       ),
       body:
-      _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-        onRefresh: _fetchData,
-        child: ListView(
-          padding: const EdgeInsets.all(16.0),
-          children: [
-            // User Info Section
-            Column(
-              children: [
-                CircleAvatar(
-                  radius: 40,
-                  backgroundColor: theme.colorScheme.primary
-                      .withOpacity(0.1),
-                  foregroundColor: theme.colorScheme.primary,
-                  child: Text(
-                    _initial,
-                    style: const TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  _fullName,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _email,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.hintColor,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            // NEW: Filter by Advisor section is now directly on this screen
-            _buildAdvisorFilterSection(context),
-
-            const SizedBox(height: 24),
-
-            // Settings Card
-            Card(
-              child: Column(
-                children: [
-                  ValueListenableBuilder<ThemeMode>(
-                    valueListenable: themeNotifier,
-                    builder: (context, currentMode, child) {
-                      return SwitchListTile(
-                        title: const Text('Dark Mode'),
-                        value: currentMode == ThemeMode.dark,
-                        onChanged: (isDark) async {
-                          final newMode =
-                          isDark ? ThemeMode.dark : ThemeMode.light;
-                          themeNotifier.value = newMode;
-                          final prefs =
-                          await SharedPreferences.getInstance();
-                          await prefs.setBool('isDarkMode', isDark);
-                        },
-                        secondary: const Icon(
-                          Icons.brightness_6_outlined,
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : RefreshIndicator(
+                onRefresh: _fetchData,
+                child: ListView(
+                  padding: const EdgeInsets.all(16.0),
+                  children: [
+                    // User Info Section
+                    Column(
+                      children: [
+                        CircleAvatar(
+                          radius: 40,
+                          backgroundColor: theme.colorScheme.primary
+                              .withOpacity(0.1),
+                          foregroundColor: theme.colorScheme.primary,
+                          child: Text(
+                            _initial,
+                            style: const TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
-                      );
-                    },
-                  ),
-                  // ... (Other settings can go here)
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
+                        const SizedBox(height: 16),
+                        Text(
+                          _fullName,
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _email,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.hintColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
 
-            // Logout Button
-            ElevatedButton.icon(
-              icon: const Icon(Icons.logout),
-              label: const Text('Logout'),
-              onPressed: () async {
-                await Supabase.instance.client.auth.signOut();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: theme.colorScheme.error.withOpacity(
-                  0.1,
+                    // NEW: Filter by Advisor section is now directly on this screen
+                    _buildAdvisorFilterSection(context),
+
+                    const SizedBox(height: 24),
+
+                    // Settings Card
+                    Card(
+                      child: Column(
+                        children: [
+                          ValueListenableBuilder<ThemeMode>(
+                            valueListenable: themeNotifier,
+                            builder: (context, currentMode, child) {
+                              return SwitchListTile(
+                                title: const Text('Dark Mode'),
+                                value: currentMode == ThemeMode.dark,
+                                onChanged: (isDark) async {
+                                  final newMode =
+                                      isDark ? ThemeMode.dark : ThemeMode.light;
+                                  themeNotifier.value = newMode;
+                                  final prefs =
+                                      await SharedPreferences.getInstance();
+                                  await prefs.setBool('isDarkMode', isDark);
+                                },
+                                secondary: const Icon(
+                                  Icons.brightness_6_outlined,
+                                ),
+                              );
+                            },
+                          ),
+                          // ... (Other settings can go here)
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Logout Button
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.logout),
+                      label: const Text('Logout'),
+                      onPressed: () async {
+                        await Supabase.instance.client.auth.signOut();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: theme.colorScheme.error.withOpacity(
+                          0.1,
+                        ),
+                        foregroundColor: theme.colorScheme.error,
+                        elevation: 0,
+                      ),
+                    ),
+                  ],
                 ),
-                foregroundColor: theme.colorScheme.error,
-                elevation: 0,
               ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -1771,101 +1762,101 @@ class _ProfileScreenState extends State<ProfileScreen> {
         const SizedBox(height: 16),
         _subscribedAdvisors.isEmpty
             ? Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                const Icon(Icons.info_outline),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Text(
-                    'You are not subscribed to any advisors. Go to the Advisors tab to subscribe.',
-                  ),
-                ),
-              ],
-            ),
-          ),
-        )
-            : ValueListenableBuilder<Set<String>>(
-          valueListenable: selectedAdvisorsNotifier,
-          builder: (context, selectedIds, child) {
-            return GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                childAspectRatio: 3 / 2.5,
-              ),
-              itemCount: _subscribedAdvisors.length,
-              itemBuilder: (context, index) {
-                final advisor = _subscribedAdvisors[index];
-                final advisorId = advisor['id'] as String;
-                final fullName =
-                '${advisor['first_name'] ?? ''} ${advisor['last_name'] ?? ''}'
-                    .trim();
-                final initial =
-                (advisor['first_name'] ?? '?').isNotEmpty
-                    ? advisor['first_name'][0].toUpperCase()
-                    : '?';
-                final isSelected = selectedIds.contains(advisorId);
-
-                return GestureDetector(
-                  onTap: () {
-                    final newSet = Set<String>.from(selectedIds);
-                    if (isSelected) {
-                      newSet.remove(advisorId);
-                    } else {
-                      newSet.add(advisorId);
-                    }
-                    selectedAdvisorsNotifier.value = newSet;
-                  },
-                  child: Card(
-                    elevation: isSelected ? 4 : 1,
-                    color:
-                    isSelected
-                        ? Theme.of(
-                      context,
-                    ).colorScheme.primary.withOpacity(0.3)
-                        : Theme.of(context).cardTheme.color,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(
-                        color:
-                        isSelected
-                            ? Theme.of(context).colorScheme.primary
-                            : Colors.transparent,
-                        width: 2,
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        'You are not subscribed to any advisors. Go to the Advisors tab to subscribe.',
                       ),
                     ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircleAvatar(radius: 24, child: Text(initial)),
-                        const SizedBox(height: 12),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 4.0,
-                          ),
-                          child: Text(
-                            fullName,
-                            textAlign: TextAlign.center,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                            ),
+                  ],
+                ),
+              ),
+            )
+            : ValueListenableBuilder<Set<String>>(
+              valueListenable: selectedAdvisorsNotifier,
+              builder: (context, selectedIds, child) {
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: 3 / 2.5,
+                  ),
+                  itemCount: _subscribedAdvisors.length,
+                  itemBuilder: (context, index) {
+                    final advisor = _subscribedAdvisors[index];
+                    final advisorId = advisor['id'] as String;
+                    final fullName =
+                        '${advisor['first_name'] ?? ''} ${advisor['last_name'] ?? ''}'
+                            .trim();
+                    final initial =
+                        (advisor['first_name'] ?? '?').isNotEmpty
+                            ? advisor['first_name'][0].toUpperCase()
+                            : '?';
+                    final isSelected = selectedIds.contains(advisorId);
+
+                    return GestureDetector(
+                      onTap: () {
+                        final newSet = Set<String>.from(selectedIds);
+                        if (isSelected) {
+                          newSet.remove(advisorId);
+                        } else {
+                          newSet.add(advisorId);
+                        }
+                        selectedAdvisorsNotifier.value = newSet;
+                      },
+                      child: Card(
+                        elevation: isSelected ? 4 : 1,
+                        color:
+                            isSelected
+                                ? Theme.of(
+                                  context,
+                                ).colorScheme.primary.withOpacity(0.3)
+                                : Theme.of(context).cardTheme.color,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(
+                            color:
+                                isSelected
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Colors.transparent,
+                            width: 2,
                           ),
                         ),
-                      ],
-                    ),
-                  ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircleAvatar(radius: 24, child: Text(initial)),
+                            const SizedBox(height: 12),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4.0,
+                              ),
+                              child: Text(
+                                fullName,
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
                 );
               },
-            );
-          },
-        ),
+            ),
       ],
     );
   }
@@ -1888,14 +1879,14 @@ class ActiveTradeCardWidget extends StatelessWidget {
       outlineColor = theme.colorScheme.error;
     }
     final currentStatusColor =
-    trade.isProfit ? theme.colorScheme.secondary : theme.colorScheme.error;
+        trade.isProfit ? theme.colorScheme.secondary : theme.colorScheme.error;
     return InkWell(
       onTap:
           () => Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => OpenTradeAnalysis(activeTrade: trade),
-        ),
-      ),
+            MaterialPageRoute(
+              builder: (context) => OpenTradeAnalysis(activeTrade: trade),
+            ),
+          ),
       borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -1962,23 +1953,12 @@ class ActiveTradeCardWidget extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            Column(
-              children: [
-                Text(
-                  'Live Indicator',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.hintColor,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                LinearProgressIndicator(
-                  value: trade.progress,
-                  backgroundColor: theme.colorScheme.onSurface.withOpacity(0.1),
-                  valueColor: AlwaysStoppedAnimation<Color>(currentStatusColor),
-                  minHeight: 6,
-                  borderRadius: BorderRadius.circular(3),
-                ),
-              ],
+            LiveTradeIndicator(
+              stopLoss: trade.trade.stopLoss,
+              target: trade.trade.target,
+              entryPrice: trade.trade.entryPrice,
+              currentPrice: trade.currentPrice,
+              tradeDirection: trade.trade.tradeDirection, // Add this line
             ),
             const SizedBox(height: 16),
             Container(
@@ -2035,12 +2015,12 @@ class ActiveTradeCardWidget extends StatelessWidget {
   }
 
   Widget _buildStat(
-      String label,
-      String value,
-      Color color,
-      BuildContext context, {
-        CrossAxisAlignment alignment = CrossAxisAlignment.start,
-      }) {
+    String label,
+    String value,
+    Color color,
+    BuildContext context, {
+    CrossAxisAlignment alignment = CrossAxisAlignment.start,
+  }) {
     final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: alignment,
@@ -2096,18 +2076,18 @@ class ClosedTradeCardWidget extends StatelessWidget {
       outlineColor = theme.colorScheme.tertiary;
     }
     final gainLossColor =
-    trade.gainLossValue >= 0
-        ? theme.colorScheme.secondary
-        : theme.colorScheme.error;
+        trade.gainLossValue >= 0
+            ? theme.colorScheme.secondary
+            : theme.colorScheme.error;
     final statusColor = outlineColor;
 
     return InkWell(
       onTap:
           () => Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => ClosedTradesAnalysis(trade: trade),
-        ),
-      ),
+            MaterialPageRoute(
+              builder: (context) => ClosedTradesAnalysis(trade: trade),
+            ),
+          ),
       borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -2254,12 +2234,12 @@ class ClosedTradeCardWidget extends StatelessWidget {
   }
 
   Widget _buildStat(
-      String label,
-      String value,
-      Color color,
-      BuildContext context, {
-        CrossAxisAlignment alignment = CrossAxisAlignment.start,
-      }) {
+    String label,
+    String value,
+    Color color,
+    BuildContext context, {
+    CrossAxisAlignment alignment = CrossAxisAlignment.start,
+  }) {
     final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: alignment,
@@ -2327,7 +2307,7 @@ class _OpenTradeAnalysisState extends State<OpenTradeAnalysis> {
     _priceTimer?.cancel();
     _priceTimer = Timer.periodic(
       const Duration(seconds: 5),
-          (_) => _updateLivePrice(),
+      (_) => _updateLivePrice(),
     );
   }
 
@@ -2351,40 +2331,40 @@ class _OpenTradeAnalysisState extends State<OpenTradeAnalysis> {
     _tradeChannel = Supabase.instance.client.channel(channelName);
     _tradeChannel!
         .onPostgresChanges(
-      event: PostgresChangeEvent.all,
-      schema: 'public',
-      table: 'trade_cards',
-      filter: PostgresChangeFilter(
-        type: PostgresChangeFilterType.eq,
-        column: 'id',
-        value: _tradeData.id,
-      ),
-      callback: (payload) {
-        if (!mounted) return;
-        final eventType = payload.eventType;
-        if (eventType == PostgresChangeEvent.update) {
-          try {
-            final updatedRecord = TradeCardModel.fromJson(
-              payload.newRecord,
-            );
-            setState(() {
-              _tradeData = updatedRecord;
-            });
-            if (updatedRecord.status != 'open') {
-              Future.delayed(const Duration(seconds: 2), () {
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'trade_cards',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: _tradeData.id,
+          ),
+          callback: (payload) {
+            if (!mounted) return;
+            final eventType = payload.eventType;
+            if (eventType == PostgresChangeEvent.update) {
+              try {
+                final updatedRecord = TradeCardModel.fromJson(
+                  payload.newRecord,
+                );
+                setState(() {
+                  _tradeData = updatedRecord;
+                });
+                if (updatedRecord.status != 'open') {
+                  Future.delayed(const Duration(seconds: 2), () {
+                    if (mounted) Navigator.of(context).pop();
+                  });
+                }
+              } catch (e) {
+                debugPrint('Error parsing updated trade record: $e');
+              }
+            } else if (eventType == PostgresChangeEvent.delete) {
+              Future.delayed(const Duration(seconds: 1), () {
                 if (mounted) Navigator.of(context).pop();
               });
             }
-          } catch (e) {
-            debugPrint('Error parsing updated trade record: $e');
-          }
-        } else if (eventType == PostgresChangeEvent.delete) {
-          Future.delayed(const Duration(seconds: 1), () {
-            if (mounted) Navigator.of(context).pop();
-          });
-        }
-      },
-    )
+          },
+        )
         .subscribe();
   }
 
@@ -2509,27 +2489,15 @@ class _OpenTradeAnalysisState extends State<OpenTradeAnalysis> {
   }
 
   Widget _buildLiveIndicator(
-      BuildContext context,
-      ActiveTradeCardViewModel trade,
-      ) {
-    final theme = Theme.of(context);
-    final currentStatusColor =
-    trade.isProfit ? theme.colorScheme.secondary : theme.colorScheme.error;
-    return Column(
-      children: [
-        Text(
-          'Live Indicator',
-          style: theme.textTheme.bodyMedium?.copyWith(color: theme.hintColor),
-        ),
-        const SizedBox(height: 8),
-        LinearProgressIndicator(
-          value: trade.progress,
-          backgroundColor: theme.dividerColor,
-          valueColor: AlwaysStoppedAnimation<Color>(currentStatusColor),
-          minHeight: 8,
-          borderRadius: BorderRadius.circular(4),
-        ),
-      ],
+    BuildContext context,
+    ActiveTradeCardViewModel trade,
+  ) {
+    return LiveTradeIndicator(
+      stopLoss: trade.trade.stopLoss,
+      target: trade.trade.target,
+      entryPrice: trade.trade.entryPrice,
+      currentPrice: trade.currentPrice,
+      tradeDirection: trade.trade.tradeDirection, // Add this line
     );
   }
 
@@ -2620,12 +2588,12 @@ class _OpenTradeAnalysisState extends State<OpenTradeAnalysis> {
   }
 
   Widget _buildDetailsCard(
-      BuildContext context,
-      ActiveTradeCardViewModel trade,
-      ) {
+    BuildContext context,
+    ActiveTradeCardViewModel trade,
+  ) {
     final theme = Theme.of(context);
     final statusColor =
-    trade.isProfit ? theme.colorScheme.secondary : theme.colorScheme.error;
+        trade.isProfit ? theme.colorScheme.secondary : theme.colorScheme.error;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -2685,11 +2653,11 @@ class _OpenTradeAnalysisState extends State<OpenTradeAnalysis> {
   }
 
   Widget _buildStatItem(
-      BuildContext context,
-      String label,
-      String value,
-      Color valueColor,
-      ) {
+    BuildContext context,
+    String label,
+    String value,
+    Color valueColor,
+  ) {
     final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2711,11 +2679,11 @@ class _OpenTradeAnalysisState extends State<OpenTradeAnalysis> {
   }
 
   Widget _buildDetailRow(
-      BuildContext context,
-      String label,
-      String value, {
-        Color? valueColor,
-      }) {
+    BuildContext context,
+    String label,
+    String value, {
+    Color? valueColor,
+  }) {
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -2984,12 +2952,12 @@ class ClosedTradesAnalysis extends StatelessWidget {
   }
 
   Widget _buildInfoColumn(
-      BuildContext context,
-      String label,
-      String value, {
-        TextStyle? valueStyle,
-        String? subLabel,
-      }) {
+    BuildContext context,
+    String label,
+    String value, {
+    TextStyle? valueStyle,
+    String? subLabel,
+  }) {
     final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -3002,7 +2970,7 @@ class ClosedTradesAnalysis extends StatelessWidget {
         Text(
           value,
           style:
-          valueStyle ??
+              valueStyle ??
               theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -3041,11 +3009,11 @@ class ClosedTradesAnalysis extends StatelessWidget {
   }
 
   Widget _buildDetailRow(
-      BuildContext context,
-      String label,
-      String value, {
-        Color? valueColor,
-      }) {
+    BuildContext context,
+    String label,
+    String value, {
+    Color? valueColor,
+  }) {
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -3130,15 +3098,15 @@ class _LoginScreenState extends State<LoginScreen> {
           _isLoading
               ? const Center(child: CircularProgressIndicator())
               : ElevatedButton(
-            onPressed: _signIn,
-            child: const Text('Sign In'),
-          ),
+                onPressed: _signIn,
+                child: const Text('Sign In'),
+              ),
           const SizedBox(height: 16),
           TextButton(
             onPressed:
                 () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (context) => const SignUpScreen()),
-            ),
+                  MaterialPageRoute(builder: (context) => const SignUpScreen()),
+                ),
             child: const Text('Don\'t have an account? Sign Up'),
           ),
         ],
@@ -3148,7 +3116,7 @@ class _LoginScreenState extends State<LoginScreen> {
 }
 
 class SignUpScreen extends StatefulWidget {
-  const SignUpScreen({super.key});
+  const SignUpScreen({Key? key}) : super(key: key);
 
   @override
   _SignUpScreenState createState() => _SignUpScreenState();
@@ -3158,6 +3126,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _mobileController = TextEditingController();
@@ -3177,10 +3146,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
         await Supabase.instance.client
             .from('profiles')
             .update({
-          'first_name': _firstNameController.text.trim(),
-          'last_name': _lastNameController.text.trim(),
-          'mobile_number': _mobileController.text.trim(),
-        })
+              'first_name': _firstNameController.text.trim(),
+              'last_name': _lastNameController.text.trim(),
+              'mobile_number': _mobileController.text.trim(),
+            })
             .eq('id', response.user!.id);
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -3210,6 +3179,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     _firstNameController.dispose();
     _lastNameController.dispose();
     _mobileController.dispose();
@@ -3262,13 +3232,25 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 return null;
               },
             ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _confirmPasswordController,
+              decoration: const InputDecoration(labelText: 'Confirm Password'),
+              obscureText: true,
+              validator: (v) {
+                if (v == null || v.isEmpty) return 'Required';
+                if (v != _passwordController.text)
+                  return 'Passwords do not match';
+                return null;
+              },
+            ),
             const SizedBox(height: 24),
             _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : ElevatedButton(
-              onPressed: _signUp,
-              child: const Text('Sign Up'),
-            ),
+                  onPressed: _signUp,
+                  child: const Text('Sign Up'),
+                ),
           ],
         ),
       ),
@@ -3368,10 +3350,10 @@ class _AdditionalDetailsScreenState extends State<AdditionalDetailsScreen> {
       await Supabase.instance.client
           .from('profiles')
           .update({
-        'first_name': _firstNameController.text.trim(),
-        'last_name': _lastNameController.text.trim(),
-        'mobile_number': _mobileController.text.trim(),
-      })
+            'first_name': _firstNameController.text.trim(),
+            'last_name': _lastNameController.text.trim(),
+            'mobile_number': _mobileController.text.trim(),
+          })
           .eq('id', user.id);
 
       if (mounted) {
@@ -3434,9 +3416,9 @@ class _AdditionalDetailsScreenState extends State<AdditionalDetailsScreen> {
             _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : ElevatedButton(
-              onPressed: _completeProfile,
-              child: const Text('Save and Continue'),
-            ),
+                  onPressed: _completeProfile,
+                  child: const Text('Save and Continue'),
+                ),
           ],
         ),
       ),
@@ -3478,9 +3460,9 @@ class FilterChipRowWidget extends StatelessWidget {
             selectedColor: theme.colorScheme.primary,
             labelStyle: TextStyle(
               color:
-              isSelected
-                  ? theme.colorScheme.onPrimary
-                  : theme.colorScheme.onSurface,
+                  isSelected
+                      ? theme.colorScheme.onPrimary
+                      : theme.colorScheme.onSurface,
               fontWeight: FontWeight.w500,
             ),
             shape: RoundedRectangleBorder(
@@ -3494,5 +3476,138 @@ class FilterChipRowWidget extends StatelessWidget {
         },
       ),
     );
+  }
+}
+
+class LiveTradeIndicator extends StatelessWidget {
+  final double stopLoss;
+  final double target;
+  final double entryPrice;
+  final double currentPrice;
+  final String tradeDirection; // NEW: Added trade direction
+
+  const LiveTradeIndicator({
+    Key? key,
+    required this.stopLoss,
+    required this.target,
+    required this.entryPrice,
+    required this.currentPrice,
+    required this.tradeDirection, // NEW
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: const Size(double.infinity, 50),
+      painter: _TradeIndicatorPainter(
+        stopLoss: stopLoss,
+        target: target,
+        entryPrice: entryPrice,
+        currentPrice: currentPrice,
+        tradeDirection: tradeDirection,
+        // NEW
+        profitColor: Theme.of(context).colorScheme.secondary,
+        lossColor: Theme.of(context).colorScheme.error,
+        textColor: Theme.of(context).textTheme.bodySmall?.color ?? Colors.grey,
+      ),
+    );
+  }
+}
+
+class _TradeIndicatorPainter extends CustomPainter {
+  final double stopLoss;
+  final double target;
+  final double entryPrice;
+  final double currentPrice;
+  final String tradeDirection; // NEW
+  final Color profitColor;
+  final Color lossColor;
+  final Color textColor;
+
+  _TradeIndicatorPainter({
+    required this.stopLoss,
+    required this.target,
+    required this.entryPrice,
+    required this.currentPrice,
+    required this.tradeDirection, // NEW
+    required this.profitColor,
+    required this.lossColor,
+    required this.textColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // UPDATED: Robustly calculate the range and min/max values
+    final minVal = math.min(stopLoss, target);
+    final maxVal = math.max(stopLoss, target);
+    final totalRange = maxVal - minVal;
+    if (totalRange <= 0) return;
+
+    // UPDATED: This function now works regardless of trade direction
+    double getX(double price) {
+      final clampedPrice = price.clamp(minVal, maxVal);
+      return ((clampedPrice - minVal) / totalRange) * size.width;
+    }
+
+    final paint = Paint()..strokeCap = StrokeCap.round;
+    final textPainter = TextPainter(textDirection: TextDirection.ltr);
+    final lineY = size.height / 2;
+
+    final currentX = getX(currentPrice);
+
+    // UPDATED: Profit/loss logic now depends on tradeDirection
+    bool isProfit;
+    if (tradeDirection == 'Buy') {
+      isProfit = currentPrice >= entryPrice;
+    } else {
+      // 'Sell'
+      isProfit = currentPrice <= entryPrice;
+    }
+    final progressColor = isProfit ? profitColor : lossColor;
+
+    // Draw the colored part of the line
+    paint.color = progressColor;
+    paint.strokeWidth = 4;
+    canvas.drawLine(Offset(0, lineY), Offset(currentX, lineY), paint);
+
+    // Draw the remaining gray part of the line
+    paint.color = Colors.grey.shade600;
+    paint.strokeWidth = 2;
+    canvas.drawLine(Offset(currentX, lineY), Offset(size.width, lineY), paint);
+
+    // Draw a distinct point for the current live price
+    paint.color = progressColor;
+    canvas.drawCircle(Offset(currentX, lineY), 6, paint);
+    paint.color = Colors.white;
+    canvas.drawCircle(Offset(currentX, lineY), 3, paint);
+
+    // Helper function to draw markers and labels
+    void drawMarker(double price, String label, {bool isAbove = false}) {
+      final x = getX(price);
+      paint.color = Colors.grey.shade400;
+      paint.strokeWidth = 1.5;
+      canvas.drawLine(Offset(x, lineY - 8), Offset(x, lineY + 8), paint);
+
+      textPainter.text = TextSpan(
+        text: label,
+        style: TextStyle(
+          color: textColor,
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+        ),
+      );
+      textPainter.layout();
+      final yPos = isAbove ? lineY - textPainter.height - 12 : lineY + 12;
+      textPainter.paint(canvas, Offset(x - (textPainter.width / 2), yPos));
+    }
+
+    drawMarker(stopLoss, 'SL');
+    drawMarker(entryPrice, 'Entry', isAbove: true);
+    drawMarker(target, 'Target');
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    return true;
   }
 }
