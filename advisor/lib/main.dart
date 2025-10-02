@@ -226,7 +226,7 @@ class AdvisorStats {
 
 // --- API Service ---
 class ApiService {
-  final String _apiBaseUrl = 'https://cb09ae5c854a.ngrok-free.app';
+  final String _apiBaseUrl = 'https://607129c036f2.ngrok-free.app';
 
   Future<Map<String, Stock>> getAllStocks() async {
     final response = await http.get(Uri.parse('$_apiBaseUrl/get-all-stocks'));
@@ -954,17 +954,19 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
     );
   }
 
-  // NEW: Widget to build the 2x2 statistics grid
   Widget _buildStatsGrid() {
     final stats = _advisorStats!;
-    return GridView.count(
-      crossAxisCount: 2,
+    return GridView.extent(
+      // Using GridView.extent creates a responsive grid that automatically
+      // adjusts the number of columns based on available screen width.
+      maxCrossAxisExtent: 180.0,
+      // Each item will have a maximum width of 180 pixels.
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       crossAxisSpacing: 16,
       mainAxisSpacing: 16,
-      childAspectRatio: 1.5,
-      // Adjust this ratio for card shape
+      childAspectRatio: 1.3,
+      // Adjusted for a slightly more balanced card shape
       children: [
         _StatCard(
           icon: Icons.people_outline,
