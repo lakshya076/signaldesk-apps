@@ -190,9 +190,43 @@ class ClosedTradeCardViewModel {
   }
 }
 
+class AdvisorStats {
+  final int followerCount;
+  final int totalClosedTrades;
+  final int profitableTrades;
+  final double hitRate;
+
+  AdvisorStats({
+    required this.followerCount,
+    required this.totalClosedTrades,
+    required this.profitableTrades,
+    required this.hitRate,
+  });
+
+  // A factory to create an instance from Supabase JSON
+  factory AdvisorStats.fromJson(Map<String, dynamic> json) {
+    return AdvisorStats(
+      followerCount: json['follower_count'] ?? 0,
+      totalClosedTrades: json['total_closed_trades'] ?? 0,
+      profitableTrades: json['profitable_trades'] ?? 0,
+      hitRate: (json['hit_rate'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+
+  // A factory for when no data is found, preventing null errors
+  factory AdvisorStats.empty() {
+    return AdvisorStats(
+      followerCount: 0,
+      totalClosedTrades: 0,
+      profitableTrades: 0,
+      hitRate: 0.0,
+    );
+  }
+}
+
 // --- API Service ---
 class ApiService {
-  final String _apiBaseUrl = 'https://f195acaa00c3.ngrok-free.app';
+  final String _apiBaseUrl = 'https://cb09ae5c854a.ngrok-free.app';
 
   Future<Map<String, Stock>> getAllStocks() async {
     final response = await http.get(Uri.parse('$_apiBaseUrl/get-all-stocks'));
@@ -200,7 +234,7 @@ class ApiService {
       final decoded = json.decode(response.body);
       final stockData = decoded['data'] as Map<String, dynamic>;
       return stockData.map(
-            (key, value) => MapEntry(key, Stock.fromJson(key, value)),
+        (key, value) => MapEntry(key, Stock.fromJson(key, value)),
       );
     } else {
       throw Exception('Failed to load stocks');
@@ -218,7 +252,7 @@ class ApiService {
     if (response.statusCode == 200) {
       final decoded = json.decode(response.body);
       final prices = (decoded['data'] as Map<String, dynamic>).map(
-            (key, value) => MapEntry(key, (value as num).toDouble()),
+        (key, value) => MapEntry(key, (value as num).toDouble()),
       );
       return prices;
     } else {
@@ -435,11 +469,11 @@ class _AuthGateState extends State<AuthGate> {
     // CHANGED: Use .maybeSingle() to safely handle cases where the profile doesn't exist.
     // This returns null instead of throwing an error if no row is found.
     final response =
-    await Supabase.instance.client
-        .from('profiles')
-        .select('role, is_verified')
-        .eq('id', user.id)
-        .maybeSingle();
+        await Supabase.instance.client
+            .from('profiles')
+            .select('role, is_verified')
+            .eq('id', user.id)
+            .maybeSingle();
     return response;
   }
 
@@ -545,7 +579,7 @@ class _AdvisorMainScreenState extends State<AdvisorMainScreen> {
 
   // Key to access the WatchlistScreen's state and call its refresh method
   final GlobalKey<_WatchlistScreenState> _watchlistKey =
-  GlobalKey<_WatchlistScreenState>();
+      GlobalKey<_WatchlistScreenState>();
 
   void _onItemTapped(int index) {
     setState(() {
@@ -597,9 +631,9 @@ class _AdvisorMainScreenState extends State<AdvisorMainScreen> {
             icon: const Icon(Icons.brightness_6),
             onPressed: () async {
               final newMode =
-              themeNotifier.value == ThemeMode.light
-                  ? ThemeMode.dark
-                  : ThemeMode.light;
+                  themeNotifier.value == ThemeMode.light
+                      ? ThemeMode.dark
+                      : ThemeMode.light;
               themeNotifier.value = newMode;
               final prefs = await SharedPreferences.getInstance();
               await prefs.setBool('isDarkMode', newMode == ThemeMode.dark);
@@ -615,26 +649,26 @@ class _AdvisorMainScreenState extends State<AdvisorMainScreen> {
       ),
       body: Center(child: widgetOptions.elementAt(_selectedIndex)),
       floatingActionButton:
-      _selectedIndex ==
-          3 // Show only for Watchlist
-          ? FloatingActionButton(
-        onPressed: () async {
-          final result = await showModalBottomSheet<bool>(
-            context: context,
-            isScrollControlled: true,
-            backgroundColor: Colors.transparent,
-            builder: (context) => const SearchScreen(),
-          );
-          // If a stock was added (result is true), refresh the list
-          if (result == true) {
-            _refreshWatchlist();
-          }
-        },
-        // The backgroundColor property has been removed.
-        // The button will now use the color from the active theme.
-        child: const Icon(Icons.add),
-      )
-          : null, // Do not show on other screens
+          _selectedIndex ==
+                  3 // Show only for Watchlist
+              ? FloatingActionButton(
+                onPressed: () async {
+                  final result = await showModalBottomSheet<bool>(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (context) => const SearchScreen(),
+                  );
+                  // If a stock was added (result is true), refresh the list
+                  if (result == true) {
+                    _refreshWatchlist();
+                  }
+                },
+                // The backgroundColor property has been removed.
+                // The button will now use the color from the active theme.
+                child: const Icon(Icons.add),
+              )
+              : null, // Do not show on other screens
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         items: const <BottomNavigationBarItem>[
@@ -675,6 +709,8 @@ class AdvisorHomeScreen extends StatefulWidget {
 }
 
 class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
+  // NEW: State variable for advisor statistics
+  AdvisorStats? _advisorStats;
   List<TradeCardModel> _activeTrades = [];
   List<TradeCardModel> _closedTrades = [];
   Map<String, double> _livePrices = {};
@@ -699,8 +735,65 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
     }
 
     _advisorId = currentUser.id;
-    await _fetchTradeCards();
+    // UPDATED: Fetch all data in parallel for faster loading
+    await _fetchAdvisorData();
     _setupRealtimeSubscription();
+  }
+
+  // NEW: Function to fetch both stats and trades
+  Future<void> _fetchAdvisorData() async {
+    if (_advisorId == null) return;
+
+    try {
+      setState(() {
+        _errorMessage = null;
+        if (_advisorStats == null) {
+          _isLoading = true;
+        }
+      });
+
+      // Fetch stats and trades concurrently
+      final responses = await Future.wait([
+        Supabase.instance.client
+            .from('advisor_statistics')
+            .select()
+            .eq('advisor_id', _advisorId!)
+            .maybeSingle(), // Use maybeSingle to safely handle no-stats case
+        Supabase.instance.client
+            .from('trade_cards')
+            .select()
+            .eq('advisor_id', _advisorId!)
+            .order('created_at', ascending: false),
+      ]);
+
+      if (!mounted) return;
+
+      // Process statistics response
+      final statsResponse = responses[0] as Map<String, dynamic>?;
+      final fetchedStats =
+          statsResponse != null
+              ? AdvisorStats.fromJson(statsResponse)
+              : AdvisorStats.empty();
+
+      // Process trades response
+      final tradesResponse = responses[1] as List<dynamic>;
+      final allCards =
+          tradesResponse
+              .map((e) => TradeCardModel.fromJson(e as Map<String, dynamic>))
+              .toList();
+
+      setState(() {
+        _advisorStats = fetchedStats;
+        _activeTrades = allCards.where((c) => c.status == 'open').toList();
+        _closedTrades = allCards.where((c) => c.status != 'open').toList();
+        _isLoading = false;
+        _errorMessage = null;
+      });
+
+      _startPriceTimer();
+    } catch (e) {
+      _handleError('Error fetching advisor data: $e');
+    }
   }
 
   void _setupRealtimeSubscription() {
@@ -711,21 +804,22 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
           Supabase.instance.client
               .channel('public:trade_cards:advisor=$_advisorId:home')
               .onPostgresChanges(
-            event: PostgresChangeEvent.all,
-            schema: 'public',
-            table: 'trade_cards',
-            filter: PostgresChangeFilter(
-              type: PostgresChangeFilterType.eq,
-              column: 'advisor_id',
-              value: _advisorId,
-            ),
-            callback: (payload) {
-              debugPrint('Realtime change received: ${payload.toString()}');
-              if (mounted) {
-                _fetchTradeCards();
-              }
-            },
-          )
+                event: PostgresChangeEvent.all,
+                schema: 'public',
+                table: 'trade_cards',
+                filter: PostgresChangeFilter(
+                  type: PostgresChangeFilterType.eq,
+                  column: 'advisor_id',
+                  value: _advisorId,
+                ),
+                callback: (payload) {
+                  debugPrint('Realtime change received: ${payload.toString()}');
+                  if (mounted) {
+                    // Just refetch everything to keep it simple and consistent
+                    _fetchAdvisorData();
+                  }
+                },
+              )
               .subscribe();
     } catch (e) {
       debugPrint('Error setting up realtime subscription: $e');
@@ -746,43 +840,6 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
       } catch (e) {
         debugPrint('Error removing realtime channel: $e');
       }
-    }
-  }
-
-  Future<void> _fetchTradeCards() async {
-    if (_advisorId == null) return;
-
-    try {
-      setState(() {
-        _errorMessage = null;
-        if (_activeTrades.isEmpty && _closedTrades.isEmpty) {
-          _isLoading = true;
-        }
-      });
-
-      final response = await Supabase.instance.client
-          .from('trade_cards')
-          .select()
-          .eq('advisor_id', _advisorId!)
-          .order('created_at', ascending: false);
-
-      if (!mounted) return;
-
-      final allCards =
-      (response as List<dynamic>)
-          .map((e) => TradeCardModel.fromJson(e as Map<String, dynamic>))
-          .toList();
-
-      setState(() {
-        _activeTrades = allCards.where((c) => c.status == 'open').toList();
-        _closedTrades = allCards.where((c) => c.status != 'open').toList();
-        _isLoading = false;
-        _errorMessage = null;
-      });
-
-      _startPriceTimer();
-    } catch (e) {
-      _handleError('Error fetching trades: $e');
     }
   }
 
@@ -807,7 +864,7 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
     if (_activeTrades.isNotEmpty) {
       _priceTimer = Timer.periodic(
         const Duration(seconds: 5),
-            (timer) => _updateLivePrices(),
+        (timer) => _updateLivePrices(),
       );
       _updateLivePrices();
     }
@@ -818,11 +875,11 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
 
     try {
       final symbols =
-      _activeTrades
-          .map((card) => card.stockSymbol)
-          .where((symbol) => symbol.isNotEmpty)
-          .toSet()
-          .toList();
+          _activeTrades
+              .map((card) => card.stockSymbol)
+              .where((symbol) => symbol.isNotEmpty)
+              .toSet()
+              .toList();
 
       if (symbols.isEmpty) return;
 
@@ -832,13 +889,12 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
       }
     } catch (e) {
       debugPrint("Error fetching live prices: $e");
-      // Don't show error to user for price updates as it's not critical
     }
   }
 
   Future<void> _refresh() async {
     _priceTimer?.cancel();
-    await _fetchTradeCards();
+    await _fetchAdvisorData();
   }
 
   @override
@@ -851,9 +907,7 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (_errorMessage != null &&
-        _activeTrades.isEmpty &&
-        _closedTrades.isEmpty) {
+    if (_errorMessage != null && _advisorStats == null) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -876,7 +930,7 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
             ),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: _fetchTradeCards,
+              onPressed: _fetchAdvisorData,
               child: const Text('Retry'),
             ),
           ],
@@ -884,14 +938,58 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
       );
     }
 
+    // Main layout with stats grid and trade lists
     return ListView(
       padding: const EdgeInsets.all(16.0),
       children: [
+        // NEW: Stats Grid Section
+        _buildStatsGrid(),
+        const SizedBox(height: 24),
         _buildSectionHeader('Active Trades', widget.onViewActive),
         _buildTradeList(_activeTrades, true),
         const SizedBox(height: 24),
         _buildSectionHeader('Closed Trades', widget.onViewClosed),
         _buildTradeList(_closedTrades, false),
+      ],
+    );
+  }
+
+  // NEW: Widget to build the 2x2 statistics grid
+  Widget _buildStatsGrid() {
+    final stats = _advisorStats!;
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisSpacing: 16,
+      mainAxisSpacing: 16,
+      childAspectRatio: 1.5,
+      // Adjust this ratio for card shape
+      children: [
+        _StatCard(
+          icon: Icons.people_outline,
+          label: 'Followers',
+          value: stats.followerCount.toString(),
+          color: Colors.blue.shade400,
+        ),
+        _StatCard(
+          icon: Icons.check_circle_outline,
+          label: 'Hit Rate',
+          value: '${stats.hitRate.toStringAsFixed(1)}%',
+          color: Colors.green.shade400,
+        ),
+        _StatCard(
+          icon: Icons.bar_chart,
+          label: 'Profitable Trades',
+          value: stats.profitableTrades.toString(),
+          color: Colors.amber.shade400,
+        ),
+        _StatCard(
+          icon: Icons.history,
+          label: 'Total Closed',
+          value: stats.totalClosedTrades.toString(),
+          color: Colors.purple.shade400,
+        ),
       ],
     );
   }
@@ -939,29 +1037,90 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
     final displayTrades = trades.take(3).toList();
     return Column(
       children:
-      displayTrades.asMap().entries.map((entry) {
-        final index = entry.key;
-        final trade = entry.value;
+          displayTrades.asMap().entries.map((entry) {
+            final index = entry.key;
+            final trade = entry.value;
 
-        Widget tradeCard;
-        if (isActive) {
-          final livePrice =
-              _livePrices[trade.stockSymbol] ?? trade.lastPrice;
-          final viewModel = ActiveTradeCardViewModel(
-            trade: trade,
-            currentPrice: livePrice,
-          );
-          tradeCard = ActiveTradeCardWidget(trade: viewModel);
-        } else {
-          final viewModel = ClosedTradeCardViewModel(trade: trade);
-          tradeCard = ClosedTradeCardWidget(trade: viewModel);
-        }
+            Widget tradeCard;
+            if (isActive) {
+              final livePrice =
+                  _livePrices[trade.stockSymbol] ?? trade.lastPrice;
+              final viewModel = ActiveTradeCardViewModel(
+                trade: trade,
+                currentPrice: livePrice,
+              );
+              tradeCard = ActiveTradeCardWidget(trade: viewModel);
+            } else {
+              final viewModel = ClosedTradeCardViewModel(trade: trade);
+              tradeCard = ClosedTradeCardWidget(trade: viewModel);
+            }
 
-        return Padding(
-          padding: EdgeInsets.only(top: index == 0 ? 8.0 : 16.0),
-          child: tradeCard,
-        );
-      }).toList(),
+            return Padding(
+              padding: EdgeInsets.only(top: index == 0 ? 8.0 : 16.0),
+              child: tradeCard,
+            );
+          }).toList(),
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+
+  const _StatCard({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(12.0), // Slightly reduced padding
+      decoration: BoxDecoration(
+        color: theme.cardTheme.color,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 28, color: color), // Slightly smaller icon
+          const Spacer(), // Use Spacer for flexible layout
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // THIS IS THE KEY CHANGE:
+              // FittedBox scales the text down to prevent it from overflowing.
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  value,
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.hintColor,
+                ),
+                maxLines: 1, // Prevent label from wrapping
+                overflow:
+                    TextOverflow.ellipsis, // Add '...' if label is too long
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -999,20 +1158,20 @@ class _AllActiveTradesScreenState extends State<AllActiveTradesScreen> {
 
     _tradesChannel!
         .onPostgresChanges(
-      event: PostgresChangeEvent.all,
-      schema: 'public',
-      table: 'trade_cards',
-      filter: PostgresChangeFilter(
-        type: PostgresChangeFilterType.eq,
-        column: 'advisor_id',
-        value: advisorId,
-      ),
-      callback: (payload) {
-        if (mounted) {
-          _fetchTradeCards();
-        }
-      },
-    )
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'trade_cards',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'advisor_id',
+            value: advisorId,
+          ),
+          callback: (payload) {
+            if (mounted) {
+              _fetchTradeCards();
+            }
+          },
+        )
         .subscribe();
   }
 
@@ -1034,7 +1193,7 @@ class _AllActiveTradesScreenState extends State<AllActiveTradesScreen> {
           .order('created_at', ascending: false);
 
       final cards =
-      (response as List).map((e) => TradeCardModel.fromJson(e)).toList();
+          (response as List).map((e) => TradeCardModel.fromJson(e)).toList();
       if (mounted) {
         setState(() {
           _tradeCards = cards;
@@ -1057,7 +1216,7 @@ class _AllActiveTradesScreenState extends State<AllActiveTradesScreen> {
     _timer?.cancel();
     _timer = Timer.periodic(
       const Duration(seconds: 5),
-          (timer) => _updateLivePrices(),
+      (timer) => _updateLivePrices(),
     );
     _updateLivePrices();
   }
@@ -1066,7 +1225,7 @@ class _AllActiveTradesScreenState extends State<AllActiveTradesScreen> {
     if (_tradeCards.isEmpty || !mounted) return;
     try {
       final symbols =
-      _tradeCards.map((card) => card.stockSymbol).toSet().toList();
+          _tradeCards.map((card) => card.stockSymbol).toSet().toList();
       final prices = await _apiService.getLivePrices(symbols);
       if (mounted) {
         setState(() {
@@ -1088,13 +1247,13 @@ class _AllActiveTradesScreenState extends State<AllActiveTradesScreen> {
 
   void _filterAndRefresh() {
     final allViewModels =
-    _tradeCards.map((trade) {
-      final livePrice = _livePrices[trade.stockSymbol] ?? trade.lastPrice;
-      return ActiveTradeCardViewModel(
-        trade: trade,
-        currentPrice: livePrice,
-      );
-    }).toList();
+        _tradeCards.map((trade) {
+          final livePrice = _livePrices[trade.stockSymbol] ?? trade.lastPrice;
+          return ActiveTradeCardViewModel(
+            trade: trade,
+            currentPrice: livePrice,
+          );
+        }).toList();
 
     if (_selectedFilter == 'All') {
       _filteredTradeCards = allViewModels;
@@ -1132,27 +1291,27 @@ class _AllActiveTradesScreenState extends State<AllActiveTradesScreen> {
           child: RefreshIndicator(
             onRefresh: _refresh,
             child:
-            _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _filteredTradeCards.isEmpty
-                ? Center(
-              child: Text(
-                _tradeCards.isEmpty
-                    ? 'You have no active trades.'
-                    : 'No trades match the filter.',
-              ),
-            )
-                : ListView.builder(
-              padding: const EdgeInsets.all(8.0),
-              itemCount: _filteredTradeCards.length,
-              itemBuilder: (context, index) {
-                final viewModel = _filteredTradeCards[index];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 16.0),
-                  child: ActiveTradeCardWidget(trade: viewModel),
-                );
-              },
-            ),
+                _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _filteredTradeCards.isEmpty
+                    ? Center(
+                      child: Text(
+                        _tradeCards.isEmpty
+                            ? 'You have no active trades.'
+                            : 'No trades match the filter.',
+                      ),
+                    )
+                    : ListView.builder(
+                      padding: const EdgeInsets.all(8.0),
+                      itemCount: _filteredTradeCards.length,
+                      itemBuilder: (context, index) {
+                        final viewModel = _filteredTradeCards[index];
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 16.0),
+                          child: ActiveTradeCardWidget(trade: viewModel),
+                        );
+                      },
+                    ),
           ),
         ),
       ],
@@ -1190,20 +1349,20 @@ class _AllClosedTradesScreenState extends State<AllClosedTradesScreen> {
 
     _tradesChannel!
         .onPostgresChanges(
-      event: PostgresChangeEvent.all,
-      schema: 'public',
-      table: 'trade_cards',
-      filter: PostgresChangeFilter(
-        type: PostgresChangeFilterType.eq,
-        column: 'advisor_id',
-        value: advisorId,
-      ),
-      callback: (payload) {
-        if (mounted) {
-          _fetchTradeCards();
-        }
-      },
-    )
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'trade_cards',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'advisor_id',
+            value: advisorId,
+          ),
+          callback: (payload) {
+            if (mounted) {
+              _fetchTradeCards();
+            }
+          },
+        )
         .subscribe();
   }
 
@@ -1224,7 +1383,7 @@ class _AllClosedTradesScreenState extends State<AllClosedTradesScreen> {
           .order('created_at', ascending: false);
 
       final cards =
-      (response as List).map((e) => TradeCardModel.fromJson(e)).toList();
+          (response as List).map((e) => TradeCardModel.fromJson(e)).toList();
       if (mounted) {
         setState(() {
           _tradeCards = cards;
@@ -1251,9 +1410,9 @@ class _AllClosedTradesScreenState extends State<AllClosedTradesScreen> {
 
   void _filterAndRefresh() {
     final allViewModels =
-    _tradeCards
-        .map((trade) => ClosedTradeCardViewModel(trade: trade))
-        .toList();
+        _tradeCards
+            .map((trade) => ClosedTradeCardViewModel(trade: trade))
+            .toList();
 
     if (_selectedFilter == 'All') {
       _filteredTradeCards = allViewModels;
@@ -1288,27 +1447,27 @@ class _AllClosedTradesScreenState extends State<AllClosedTradesScreen> {
         ),
         Expanded(
           child:
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : _filteredTradeCards.isEmpty
-              ? Center(
-            child: Text(
-              _tradeCards.isEmpty
-                  ? 'You have no closed trades.'
-                  : 'No trades match the filter.',
-            ),
-          )
-              : ListView.builder(
-            padding: const EdgeInsets.all(8.0),
-            itemCount: _filteredTradeCards.length,
-            itemBuilder: (context, index) {
-              final viewModel = _filteredTradeCards[index];
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 16.0),
-                child: ClosedTradeCardWidget(trade: viewModel),
-              );
-            },
-          ),
+              _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _filteredTradeCards.isEmpty
+                  ? Center(
+                    child: Text(
+                      _tradeCards.isEmpty
+                          ? 'You have no closed trades.'
+                          : 'No trades match the filter.',
+                    ),
+                  )
+                  : ListView.builder(
+                    padding: const EdgeInsets.all(8.0),
+                    itemCount: _filteredTradeCards.length,
+                    itemBuilder: (context, index) {
+                      final viewModel = _filteredTradeCards[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 16.0),
+                        child: ClosedTradeCardWidget(trade: viewModel),
+                      );
+                    },
+                  ),
         ),
       ],
     );
@@ -1352,14 +1511,14 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
           .eq('advisor_id', advisorId);
 
       final watchlistItems =
-      (response as List)
-          .map(
-            (item) => WatchlistItem(
-          id: item['id'],
-          stockSymbol: item['stock_symbol'],
-        ),
-      )
-          .toList();
+          (response as List)
+              .map(
+                (item) => WatchlistItem(
+                  id: item['id'],
+                  stockSymbol: item['stock_symbol'],
+                ),
+              )
+              .toList();
 
       final allStocks = await _apiService.getAllStocks();
       for (var item in watchlistItems) {
@@ -1397,7 +1556,7 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
     _timer?.cancel();
     _timer = Timer.periodic(
       const Duration(seconds: 5),
-          (timer) => _updateLivePrices(),
+      (timer) => _updateLivePrices(),
     );
     _updateLivePrices();
   }
@@ -1486,33 +1645,33 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
     return _isLoading
         ? const Center(child: CircularProgressIndicator())
         : ListView.builder(
-      padding: const EdgeInsets.only(bottom: 80),
-      itemCount: _watchlist.length,
-      itemBuilder: (context, index) {
-        final item = _watchlist[index];
-        final livePrice =
-            _livePrices[item.stockSymbol] ??
+          padding: const EdgeInsets.only(bottom: 80),
+          itemCount: _watchlist.length,
+          itemBuilder: (context, index) {
+            final item = _watchlist[index];
+            final livePrice =
+                _livePrices[item.stockSymbol] ??
                 item.stockData?.lastPrice ??
                 0.0;
-        final lastPrice = item.stockData?.lastPrice ?? 0.0;
-        final change = livePrice - lastPrice;
-        final percentChange =
-        lastPrice != 0 ? (change / lastPrice) * 100 : 0.0;
+            final lastPrice = item.stockData?.lastPrice ?? 0.0;
+            final change = livePrice - lastPrice;
+            final percentChange =
+                lastPrice != 0 ? (change / lastPrice) * 100 : 0.0;
 
-        return InkWell(
-          onLongPress: () {
-            _showDeleteConfirmationDialog(item);
+            return InkWell(
+              onLongPress: () {
+                _showDeleteConfirmationDialog(item);
+              },
+              child: _WatchlistTile(
+                stock: item.stockData,
+                livePrice: livePrice,
+                change: change,
+                percentChange: percentChange,
+                onCreateTrade: widget.onCreateTrade,
+              ),
+            );
           },
-          child: _WatchlistTile(
-            stock: item.stockData,
-            livePrice: livePrice,
-            change: change,
-            percentChange: percentChange,
-            onCreateTrade: widget.onCreateTrade,
-          ),
         );
-      },
-    );
   }
 }
 
@@ -1545,7 +1704,7 @@ class _WatchlistTileState extends State<_WatchlistTile> {
     final theme = Theme.of(context);
     final isPositive = widget.change >= 0;
     final color =
-    isPositive ? theme.colorScheme.secondary : theme.colorScheme.error;
+        isPositive ? theme.colorScheme.secondary : theme.colorScheme.error;
 
     return InkWell(
       onTap: () => setState(() => _isExpanded = !_isExpanded),
@@ -1617,9 +1776,9 @@ class _WatchlistTileState extends State<_WatchlistTile> {
                         MaterialPageRoute(
                           builder:
                               (context) => SetAlertScreen(
-                            isPositive: isPositive,
-                            stock: widget.stock!,
-                          ),
+                                isPositive: isPositive,
+                                stock: widget.stock!,
+                              ),
                         ),
                       );
                     },
@@ -1706,15 +1865,15 @@ class _SearchScreenState extends State<SearchScreen> {
     final query = _searchController.text.toUpperCase();
     setState(() {
       _searchResults =
-      query.isEmpty
-          ? _allStocks.values.toList()
-          : _allStocks.values
-          .where(
-            (stock) =>
-        stock.symbol.toUpperCase().contains(query) ||
-            stock.name.toUpperCase().contains(query),
-      )
-          .toList();
+          query.isEmpty
+              ? _allStocks.values.toList()
+              : _allStocks.values
+                  .where(
+                    (stock) =>
+                        stock.symbol.toUpperCase().contains(query) ||
+                        stock.name.toUpperCase().contains(query),
+                  )
+                  .toList();
     });
   }
 
@@ -1792,32 +1951,32 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
               Expanded(
                 child:
-                _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _searchResults.isEmpty
-                    ? const Center(child: Text("No stocks found"))
-                    : ListView.builder(
-                  controller: controller,
-                  itemCount: _searchResults.length,
-                  itemBuilder: (context, index) {
-                    final stock = _searchResults[index];
-                    return ListTile(
-                      title: Text(stock.symbol),
-                      subtitle: Text(stock.name),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.add_circle_outline),
-                        onPressed: () {
-                          if (ModalRoute.of(context)?.settings.name ==
-                              'create_trade_search') {
-                            Navigator.pop(context, stock);
-                          } else {
-                            _addToWatchlist(stock.symbol);
-                          }
-                        },
-                      ),
-                    );
-                  },
-                ),
+                    _isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : _searchResults.isEmpty
+                        ? const Center(child: Text("No stocks found"))
+                        : ListView.builder(
+                          controller: controller,
+                          itemCount: _searchResults.length,
+                          itemBuilder: (context, index) {
+                            final stock = _searchResults[index];
+                            return ListTile(
+                              title: Text(stock.symbol),
+                              subtitle: Text(stock.name),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.add_circle_outline),
+                                onPressed: () {
+                                  if (ModalRoute.of(context)?.settings.name ==
+                                      'create_trade_search') {
+                                    Navigator.pop(context, stock);
+                                  } else {
+                                    _addToWatchlist(stock.symbol);
+                                  }
+                                },
+                              ),
+                            );
+                          },
+                        ),
               ),
             ],
           ),
@@ -1900,9 +2059,9 @@ class _SetAlertScreenState extends State<SetAlertScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final color =
-    widget.isPositive
-        ? theme.colorScheme.secondary
-        : theme.colorScheme.error;
+        widget.isPositive
+            ? theme.colorScheme.secondary
+            : theme.colorScheme.error;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Set Alert')),
@@ -1992,16 +2151,16 @@ class _SetAlertScreenState extends State<SetAlertScreen> {
                   minimumSize: const Size(double.infinity, 52),
                 ),
                 child:
-                _isSaving
-                    ? const SizedBox(
-                  height: 24,
-                  width: 24,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 2,
-                  ),
-                )
-                    : const Text('Set Alert'),
+                    _isSaving
+                        ? const SizedBox(
+                          height: 24,
+                          width: 24,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                        : const Text('Set Alert'),
               ),
             ],
           ),
@@ -2031,13 +2190,13 @@ class _SetAlertScreenState extends State<SetAlertScreen> {
       onPressed: () => setState(() => _notifyMeOption = option),
       style: ElevatedButton.styleFrom(
         backgroundColor:
-        isSelected
-            ? theme.colorScheme.primary
-            : theme.inputDecorationTheme.fillColor,
+            isSelected
+                ? theme.colorScheme.primary
+                : theme.inputDecorationTheme.fillColor,
         foregroundColor:
-        isSelected
-            ? theme.colorScheme.onPrimary
-            : theme.colorScheme.onSurface,
+            isSelected
+                ? theme.colorScheme.onPrimary
+                : theme.colorScheme.onSurface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         padding: const EdgeInsets.symmetric(horizontal: 16),
       ),
@@ -2190,9 +2349,9 @@ class _CreateTradeCardScreenState extends State<CreateTradeCardScreen> {
                   ),
                   validator:
                       (value) =>
-                  (value == null || value.isEmpty)
-                      ? 'Please select a stock'
-                      : null,
+                          (value == null || value.isEmpty)
+                              ? 'Please select a stock'
+                              : null,
                 ),
               ),
             ),
@@ -2333,27 +2492,27 @@ class _CreateTradeCardScreenState extends State<CreateTradeCardScreen> {
             _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : SlideAction(
-              key: _slideActionKey,
-              text: 'Swipe to Create Trade Idea',
-              textStyle: TextStyle(
-                color: Theme.of(context).colorScheme.onPrimary,
-                fontSize: 16,
-              ),
-              outerColor: Theme.of(context).colorScheme.primary,
-              innerColor: Colors.white,
-              sliderButtonIcon: const Icon(
-                Icons.arrow_forward_ios,
-                color: Colors.blue,
-              ),
-              onSubmit: () {
-                if (_formKey.currentState!.validate()) {
-                  _createTrade();
-                } else {
-                  _slideActionKey.currentState?.reset();
-                }
-                return null;
-              },
-            ),
+                  key: _slideActionKey,
+                  text: 'Swipe to Create Trade Idea',
+                  textStyle: TextStyle(
+                    color: Theme.of(context).colorScheme.onPrimary,
+                    fontSize: 16,
+                  ),
+                  outerColor: Theme.of(context).colorScheme.primary,
+                  innerColor: Colors.white,
+                  sliderButtonIcon: const Icon(
+                    Icons.arrow_forward_ios,
+                    color: Colors.blue,
+                  ),
+                  onSubmit: () {
+                    if (_formKey.currentState!.validate()) {
+                      _createTrade();
+                    } else {
+                      _slideActionKey.currentState?.reset();
+                    }
+                    return null;
+                  },
+                ),
           ],
         ),
       ),
@@ -2377,13 +2536,13 @@ class _CreateTradeCardScreenState extends State<CreateTradeCardScreen> {
       onPressed: () => setState(() => _tradeDirection = direction),
       style: ElevatedButton.styleFrom(
         backgroundColor:
-        isSelected
-            ? theme.colorScheme.primary
-            : theme.inputDecorationTheme.fillColor,
+            isSelected
+                ? theme.colorScheme.primary
+                : theme.inputDecorationTheme.fillColor,
         foregroundColor:
-        isSelected
-            ? theme.colorScheme.onPrimary
-            : theme.colorScheme.onSurface,
+            isSelected
+                ? theme.colorScheme.onPrimary
+                : theme.colorScheme.onSurface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         padding: const EdgeInsets.symmetric(vertical: 14),
       ),
@@ -2433,15 +2592,15 @@ class ActiveTradeCardWidget extends StatelessWidget {
     }
 
     final currentStatusColor =
-    trade.isProfit ? theme.colorScheme.secondary : theme.colorScheme.error;
+        trade.isProfit ? theme.colorScheme.secondary : theme.colorScheme.error;
 
     return InkWell(
       onTap:
           () => Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => OpenTradeAnalysis(activeTrade: trade),
-        ),
-      ),
+            MaterialPageRoute(
+              builder: (context) => OpenTradeAnalysis(activeTrade: trade),
+            ),
+          ),
       borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -2571,12 +2730,12 @@ class ActiveTradeCardWidget extends StatelessWidget {
   }
 
   Widget _buildStat(
-      String label,
-      String value,
-      Color color,
-      BuildContext context, {
-        CrossAxisAlignment alignment = CrossAxisAlignment.start,
-      }) {
+    String label,
+    String value,
+    Color color,
+    BuildContext context, {
+    CrossAxisAlignment alignment = CrossAxisAlignment.start,
+  }) {
     final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: alignment,
@@ -2635,18 +2794,18 @@ class ClosedTradeCardWidget extends StatelessWidget {
     }
 
     final gainLossColor =
-    trade.gainLossValue >= 0
-        ? theme.colorScheme.secondary
-        : theme.colorScheme.error;
+        trade.gainLossValue >= 0
+            ? theme.colorScheme.secondary
+            : theme.colorScheme.error;
     final statusColor = outlineColor;
 
     return InkWell(
       onTap:
           () => Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => ClosedTradesAnalysis(trade: trade),
-        ),
-      ),
+            MaterialPageRoute(
+              builder: (context) => ClosedTradesAnalysis(trade: trade),
+            ),
+          ),
       borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -2794,12 +2953,12 @@ class ClosedTradeCardWidget extends StatelessWidget {
   }
 
   Widget _buildStat(
-      String label,
-      String value,
-      Color color,
-      BuildContext context, {
-        CrossAxisAlignment alignment = CrossAxisAlignment.start,
-      }) {
+    String label,
+    String value,
+    Color color,
+    BuildContext context, {
+    CrossAxisAlignment alignment = CrossAxisAlignment.start,
+  }) {
     final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: alignment,
@@ -2872,9 +3031,9 @@ class FilterChipRowWidget extends StatelessWidget {
             selectedColor: theme.colorScheme.primary,
             labelStyle: TextStyle(
               color:
-              isSelected
-                  ? theme.colorScheme.onPrimary
-                  : theme.colorScheme.onSurface,
+                  isSelected
+                      ? theme.colorScheme.onPrimary
+                      : theme.colorScheme.onSurface,
               fontWeight: FontWeight.w500,
             ),
             shape: RoundedRectangleBorder(
@@ -2922,7 +3081,7 @@ class _OpenTradeAnalysisState extends State<OpenTradeAnalysis> {
     _priceTimer?.cancel();
     _priceTimer = Timer.periodic(
       const Duration(seconds: 5),
-          (_) => _updateLivePrice(),
+      (_) => _updateLivePrice(),
     );
   }
 
@@ -2948,43 +3107,43 @@ class _OpenTradeAnalysisState extends State<OpenTradeAnalysis> {
 
     _tradeChannel!
         .onPostgresChanges(
-      event: PostgresChangeEvent.all,
-      schema: 'public',
-      table: 'trade_cards',
-      filter: PostgresChangeFilter(
-        type: PostgresChangeFilterType.eq,
-        column: 'id',
-        value: _tradeData.id,
-      ),
-      callback: (payload) {
-        if (!mounted) return;
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'trade_cards',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: _tradeData.id,
+          ),
+          callback: (payload) {
+            if (!mounted) return;
 
-        final eventType = payload.eventType;
+            final eventType = payload.eventType;
 
-        if (eventType == PostgresChangeEvent.update) {
-          try {
-            final updatedRecord = TradeCardModel.fromJson(
-              payload.newRecord,
-            );
-            setState(() {
-              _tradeData = updatedRecord;
-            });
-            if (updatedRecord.status != 'open') {
-              Future.delayed(const Duration(seconds: 2), () {
+            if (eventType == PostgresChangeEvent.update) {
+              try {
+                final updatedRecord = TradeCardModel.fromJson(
+                  payload.newRecord,
+                );
+                setState(() {
+                  _tradeData = updatedRecord;
+                });
+                if (updatedRecord.status != 'open') {
+                  Future.delayed(const Duration(seconds: 2), () {
+                    if (mounted) Navigator.of(context).pop();
+                  });
+                }
+              } catch (e) {
+                debugPrint('Error parsing updated trade record: $e');
+              }
+            } else if (eventType == PostgresChangeEvent.delete) {
+              // If the trade is deleted, pop the screen
+              Future.delayed(const Duration(seconds: 1), () {
                 if (mounted) Navigator.of(context).pop();
               });
             }
-          } catch (e) {
-            debugPrint('Error parsing updated trade record: $e');
-          }
-        } else if (eventType == PostgresChangeEvent.delete) {
-          // If the trade is deleted, pop the screen
-          Future.delayed(const Duration(seconds: 1), () {
-            if (mounted) Navigator.of(context).pop();
-          });
-        }
-      },
-    )
+          },
+        )
         .subscribe();
   }
 
@@ -3112,9 +3271,9 @@ class _OpenTradeAnalysisState extends State<OpenTradeAnalysis> {
   }
 
   Widget _buildLiveIndicator(
-      BuildContext context,
-      ActiveTradeCardViewModel trade,
-      ) {
+    BuildContext context,
+    ActiveTradeCardViewModel trade,
+  ) {
     return LiveTradeIndicator(
       stopLoss: trade.trade.stopLoss,
       target: trade.trade.target,
@@ -3211,12 +3370,12 @@ class _OpenTradeAnalysisState extends State<OpenTradeAnalysis> {
   }
 
   Widget _buildDetailsCard(
-      BuildContext context,
-      ActiveTradeCardViewModel trade,
-      ) {
+    BuildContext context,
+    ActiveTradeCardViewModel trade,
+  ) {
     final theme = Theme.of(context);
     final statusColor =
-    trade.isProfit ? theme.colorScheme.secondary : theme.colorScheme.error;
+        trade.isProfit ? theme.colorScheme.secondary : theme.colorScheme.error;
 
     return Card(
       child: Padding(
@@ -3278,11 +3437,11 @@ class _OpenTradeAnalysisState extends State<OpenTradeAnalysis> {
   }
 
   Widget _buildStatItem(
-      BuildContext context,
-      String label,
-      String value,
-      Color valueColor,
-      ) {
+    BuildContext context,
+    String label,
+    String value,
+    Color valueColor,
+  ) {
     final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -3304,11 +3463,11 @@ class _OpenTradeAnalysisState extends State<OpenTradeAnalysis> {
   }
 
   Widget _buildDetailRow(
-      BuildContext context,
-      String label,
-      String value, {
-        Color? valueColor,
-      }) {
+    BuildContext context,
+    String label,
+    String value, {
+    Color? valueColor,
+  }) {
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -3579,12 +3738,12 @@ class ClosedTradesAnalysis extends StatelessWidget {
   }
 
   Widget _buildInfoColumn(
-      BuildContext context,
-      String label,
-      String value, {
-        TextStyle? valueStyle,
-        String? subLabel,
-      }) {
+    BuildContext context,
+    String label,
+    String value, {
+    TextStyle? valueStyle,
+    String? subLabel,
+  }) {
     final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -3597,7 +3756,7 @@ class ClosedTradesAnalysis extends StatelessWidget {
         Text(
           value,
           style:
-          valueStyle ??
+              valueStyle ??
               theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -3636,11 +3795,11 @@ class ClosedTradesAnalysis extends StatelessWidget {
   }
 
   Widget _buildDetailRow(
-      BuildContext context,
-      String label,
-      String value, {
-        Color? valueColor,
-      }) {
+    BuildContext context,
+    String label,
+    String value, {
+    Color? valueColor,
+  }) {
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -3724,15 +3883,15 @@ class _LoginScreenState extends State<LoginScreen> {
           _isLoading
               ? const Center(child: CircularProgressIndicator())
               : ElevatedButton(
-            onPressed: _signIn,
-            child: const Text('Sign In'),
-          ),
+                onPressed: _signIn,
+                child: const Text('Sign In'),
+              ),
           const SizedBox(height: 16),
           TextButton(
             onPressed:
                 () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (context) => const SignUpScreen()),
-            ),
+                  MaterialPageRoute(builder: (context) => const SignUpScreen()),
+                ),
             child: const Text('Don\'t have an account? Sign Up'),
           ),
         ],
@@ -3783,18 +3942,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
         await Supabase.instance.client
             .from('profiles')
             .update({
-          'first_name': _firstNameController.text.trim(),
-          'last_name': _lastNameController.text.trim(),
-          'mobile_number': _mobileController.text.trim(),
-        })
+              'first_name': _firstNameController.text.trim(),
+              'last_name': _lastNameController.text.trim(),
+              'mobile_number': _mobileController.text.trim(),
+            })
             .eq('id', response.user!.id);
 
         await Supabase.instance.client
             .from('advisor_details')
             .update({
-          'license_type': _selectedLicense!,
-          'registration_number': _regNumController.text.trim(),
-        })
+              'license_type': _selectedLicense!,
+              'registration_number': _regNumController.text.trim(),
+            })
             .eq('profile_id', response.user!.id);
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -3901,16 +4060,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
               value: _selectedLicense,
               decoration: const InputDecoration(labelText: 'License Type'),
               items:
-              _licenseTypes
-                  .map(
-                    (type) =>
-                    DropdownMenuItem(value: type, child: Text(type)),
-              )
-                  .toList(),
+                  _licenseTypes
+                      .map(
+                        (type) =>
+                            DropdownMenuItem(value: type, child: Text(type)),
+                      )
+                      .toList(),
               onChanged: (value) => setState(() => _selectedLicense = value),
               validator:
                   (value) =>
-              value == null ? 'Please select a license type' : null,
+                      value == null ? 'Please select a license type' : null,
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -3924,9 +4083,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
             _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : ElevatedButton(
-              onPressed: _signUp,
-              child: const Text('Sign Up'),
-            ),
+                  onPressed: _signUp,
+                  child: const Text('Sign Up'),
+                ),
           ],
         ),
       ),
