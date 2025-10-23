@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import 'package:signaldesk_advisor/features/dashboard/advisor_home_screen.dart';
+import 'package:signaldesk_advisor/features/advisor_home_screen.dart';
 import 'package:signaldesk_advisor/features/trades/all_active_trades_screen.dart';
 import 'package:signaldesk_advisor/features/trades/all_closed_trades_screen.dart';
 import 'package:signaldesk_advisor/features/trades/create_trade_card_screen.dart';

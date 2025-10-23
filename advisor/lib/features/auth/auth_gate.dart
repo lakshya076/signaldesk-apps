@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:signaldesk_advisor/features/auth/access_denied_screen.dart';
 import 'package:signaldesk_advisor/features/auth/login_screen.dart';
-import 'package:signaldesk_advisor/features/dashboard/advisor_main_screen.dart';
+import 'package:signaldesk_advisor/features/advisor_main_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'pending_approval_screen.dart';

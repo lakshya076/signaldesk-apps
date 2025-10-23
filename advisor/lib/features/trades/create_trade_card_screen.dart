@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:slide_to_act/slide_to_act.dart';
-import 'package:signaldesk_advisor/features/dashboard/advisor_main_screen.dart';
+import 'package:signaldesk_advisor/features/advisor_main_screen.dart';
 import 'package:signaldesk_advisor/features/watchlist/search_screen.dart';
 import 'package:signaldesk_advisor/models/stock.dart';
 import 'package:signaldesk_advisor/services/api_service.dart';
