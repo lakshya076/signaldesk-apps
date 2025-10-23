@@ -226,7 +226,7 @@ class AdvisorStats {
 
 // --- API Service ---
 class ApiService {
-  final String _apiBaseUrl = 'https://607129c036f2.ngrok-free.app';
+  final String _apiBaseUrl = 'https://139c1ddf86f3.ngrok-free.app';
 
   Future<Map<String, Stock>> getAllStocks() async {
     final response = await http.get(Uri.parse('$_apiBaseUrl/get-all-stocks'));
@@ -277,6 +277,82 @@ class ApiService {
 
     if (response.statusCode != 200) {
       throw Exception('Failed to create trade: ${response.body}');
+    }
+  }
+
+  Future<void> subscribeToInstrument(String symbol) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_apiBaseUrl/subscribe-instrument'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'symbol': symbol, 'action': 'add'}),
+      );
+
+      if (response.statusCode == 200) {
+        debugPrint('✓ Subscribed to $symbol for live data');
+      } else {
+        debugPrint('⚠ Failed to subscribe to $symbol: ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('✗ Error subscribing to $symbol: $e');
+    }
+  }
+
+  Future<void> unsubscribeFromInstrument(String symbol) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_apiBaseUrl/subscribe-instrument'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'symbol': symbol, 'action': 'remove'}),
+      );
+
+      if (response.statusCode == 200) {
+        debugPrint('✓ Unsubscribed from $symbol');
+      }
+    } catch (e) {
+      debugPrint('✗ Error unsubscribing from $symbol: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>?> getStockData(String symbol) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_apiBaseUrl/get-stock-data/$symbol'),
+      );
+
+      if (response.statusCode == 200) {
+        final decoded = json.decode(response.body);
+        return decoded['data'] as Map<String, dynamic>?;
+      } else if (response.statusCode == 404) {
+        debugPrint('Stock $symbol not found');
+        return null;
+      } else {
+        throw Exception('Failed to load stock data: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Error fetching stock data for $symbol: $e');
+      return null;
+    }
+  }
+
+  Future<bool> checkMarketStatus() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_apiBaseUrl/check-market-status'),
+      );
+
+      // If we get a 200 OK, the market is open
+      if (response.statusCode == 200) {
+        final decoded = json.decode(response.body);
+        return decoded['status'] == 'open';
+      }
+
+      // Any other status code (like 503) will be treated as closed
+      return false;
+    } catch (e) {
+      // This will catch network errors and 503 exceptions
+      debugPrint('Market check failed: $e');
+      return false;
     }
   }
 }
@@ -565,7 +641,8 @@ class PendingApprovalScreen extends StatelessWidget {
 }
 
 // --- ADVISOR UI SCREENS ---
-// --- ADVISOR UI SCREENS ---
+// In main.dart
+
 class AdvisorMainScreen extends StatefulWidget {
   const AdvisorMainScreen({super.key});
 
@@ -577,15 +654,89 @@ class _AdvisorMainScreenState extends State<AdvisorMainScreen> {
   int _selectedIndex = 0;
   Stock? _stockToCreateTrade;
 
+  // ✅ ADDED: API Service and loading state
+  final ApiService _apiService = ApiService();
+  bool _isCheckingMarket = false;
+
   // Key to access the WatchlistScreen's state and call its refresh method
   final GlobalKey<_WatchlistScreenState> _watchlistKey =
       GlobalKey<_WatchlistScreenState>();
 
+  // ✅ MODIFIED: _onItemTapped to handle market check
   void _onItemTapped(int index) {
+    if (index == 4) {
+      // User tapped "Create", run our check
+      _navigateToCreateTrade();
+    } else {
+      // User tapped something else, just change the screen
+      setState(() {
+        if (index != 4) _stockToCreateTrade = null;
+        _selectedIndex = index;
+      });
+    }
+  }
+
+  // ✅ ADDED: Helper function to show "Market Closed" dialog
+  Future<void> _showMarketClosedDialog() async {
+    return showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Market Closed'),
+          content: const SingleChildScrollView(
+            child: Text('Trade creation is disabled outside of market hours.'),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('OK'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ✅ ADDED: New function to handle navigation with market check
+  Future<void> _navigateToCreateTrade([Stock? stock]) async {
+    if (_isCheckingMarket) return; // Prevent double-taps
+
     setState(() {
-      if (index != 4) _stockToCreateTrade = null;
-      _selectedIndex = index;
+      _isCheckingMarket = true;
     });
+
+    // Show a loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    final isMarketOpen = await _apiService.checkMarketStatus();
+
+    // Hide loading dialog
+    if (mounted) {
+      Navigator.of(context, rootNavigator: true).pop();
+    }
+
+    setState(() {
+      _isCheckingMarket = false;
+    });
+
+    if (!mounted) return;
+
+    if (isMarketOpen) {
+      // Market is open, proceed
+      setState(() {
+        _stockToCreateTrade = stock;
+        _selectedIndex = 4;
+      });
+    } else {
+      // Market is closed, show popup
+      _showMarketClosedDialog();
+    }
   }
 
   // A method to refresh the watchlist from this parent widget
@@ -605,11 +756,9 @@ class _AdvisorMainScreenState extends State<AdvisorMainScreen> {
       // Assign the GlobalKey to the WatchlistScreen instance
       WatchlistScreen(
         key: _watchlistKey,
+        // ✅ MODIFIED: Watchlist button now also checks market status
         onCreateTrade: (stock) {
-          setState(() {
-            _stockToCreateTrade = stock;
-            _selectedIndex = 4;
-          });
+          _navigateToCreateTrade(stock);
         },
       ),
       CreateTradeCardScreen(preselectedStock: _stockToCreateTrade),
@@ -688,7 +837,7 @@ class _AdvisorMainScreenState extends State<AdvisorMainScreen> {
           ),
         ],
         currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
+        onTap: _onItemTapped, // This now points to our updated function
       ),
     );
   }
@@ -770,17 +919,15 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
 
       // Process statistics response
       final statsResponse = responses[0] as Map<String, dynamic>?;
-      final fetchedStats =
-          statsResponse != null
-              ? AdvisorStats.fromJson(statsResponse)
-              : AdvisorStats.empty();
+      final fetchedStats = statsResponse != null
+          ? AdvisorStats.fromJson(statsResponse)
+          : AdvisorStats.empty();
 
       // Process trades response
       final tradesResponse = responses[1] as List<dynamic>;
-      final allCards =
-          tradesResponse
-              .map((e) => TradeCardModel.fromJson(e as Map<String, dynamic>))
-              .toList();
+      final allCards = tradesResponse
+          .map((e) => TradeCardModel.fromJson(e as Map<String, dynamic>))
+          .toList();
 
       setState(() {
         _advisorStats = fetchedStats;
@@ -800,27 +947,26 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
     if (_advisorId == null) return;
 
     try {
-      _tradesChannel =
-          Supabase.instance.client
-              .channel('public:trade_cards:advisor=$_advisorId:home')
-              .onPostgresChanges(
-                event: PostgresChangeEvent.all,
-                schema: 'public',
-                table: 'trade_cards',
-                filter: PostgresChangeFilter(
-                  type: PostgresChangeFilterType.eq,
-                  column: 'advisor_id',
-                  value: _advisorId,
-                ),
-                callback: (payload) {
-                  debugPrint('Realtime change received: ${payload.toString()}');
-                  if (mounted) {
-                    // Just refetch everything to keep it simple and consistent
-                    _fetchAdvisorData();
-                  }
-                },
-              )
-              .subscribe();
+      _tradesChannel = Supabase.instance.client
+          .channel('public:trade_cards:advisor=$_advisorId:home')
+          .onPostgresChanges(
+        event: PostgresChangeEvent.all,
+        schema: 'public',
+        table: 'trade_cards',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'advisor_id',
+          value: _advisorId,
+        ),
+        callback: (payload) {
+          debugPrint('Realtime change received: ${payload.toString()}');
+          if (mounted) {
+            // Just refetch everything to keep it simple and consistent
+            _fetchAdvisorData();
+          }
+        },
+      )
+          .subscribe();
     } catch (e) {
       debugPrint('Error setting up realtime subscription: $e');
     }
@@ -864,7 +1010,7 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
     if (_activeTrades.isNotEmpty) {
       _priceTimer = Timer.periodic(
         const Duration(seconds: 5),
-        (timer) => _updateLivePrices(),
+            (timer) => _updateLivePrices(),
       );
       _updateLivePrices();
     }
@@ -874,12 +1020,11 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
     if (_activeTrades.isEmpty || !mounted) return;
 
     try {
-      final symbols =
-          _activeTrades
-              .map((card) => card.stockSymbol)
-              .where((symbol) => symbol.isNotEmpty)
-              .toSet()
-              .toList();
+      final symbols = _activeTrades
+          .map((card) => card.stockSymbol)
+          .where((symbol) => symbol.isNotEmpty)
+          .toSet()
+          .toList();
 
       if (symbols.isEmpty) return;
 
@@ -895,6 +1040,93 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
   Future<void> _refresh() async {
     _priceTimer?.cancel();
     await _fetchAdvisorData();
+  }
+
+  // This is the handler function from the previous step (unchanged)
+  Future<void> _handleManualClose(
+      String tradeId,
+      String newStatus,
+      double closingPrice,
+      ) async {
+    try {
+      // Show a loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+
+      await Supabase.instance.client.from('trade_cards').update({
+        'status': newStatus,
+        'closed_at': 'now()',
+        'last_price': closingPrice,
+      }).eq('id', tradeId);
+
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop(); // Hide loading
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Trade manually closed successfully.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      // Refresh all data on the home screen
+      _fetchAdvisorData();
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop(); // Hide loading
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to close trade: $e'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    }
+  }
+
+  // ✅ ADDED: The handler function to update SL/TGT in Supabase
+  Future<void> _handleModifyTrade(
+      String tradeId,
+      double newStopLoss,
+      double newTarget,
+      ) async {
+    try {
+      // Show a loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+
+      await Supabase.instance.client.from('trade_cards').update({
+        'stop_loss': newStopLoss,
+        'target': newTarget,
+      }).eq('id', tradeId);
+
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop(); // Hide loading
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Trade modified successfully.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      // Refresh all data on the home screen
+      _fetchAdvisorData();
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop(); // Hide loading
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to modify trade: $e'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    }
   }
 
   @override
@@ -1038,34 +1270,36 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
 
     final displayTrades = trades.take(3).toList();
     return Column(
-      children:
-          displayTrades.asMap().entries.map((entry) {
-            final index = entry.key;
-            final trade = entry.value;
+      children: displayTrades.asMap().entries.map((entry) {
+        final index = entry.key;
+        final trade = entry.value;
 
-            Widget tradeCard;
-            if (isActive) {
-              final livePrice =
-                  _livePrices[trade.stockSymbol] ?? trade.lastPrice;
-              final viewModel = ActiveTradeCardViewModel(
-                trade: trade,
-                currentPrice: livePrice,
-              );
-              tradeCard = ActiveTradeCardWidget(trade: viewModel);
-            } else {
-              final viewModel = ClosedTradeCardViewModel(trade: trade);
-              tradeCard = ClosedTradeCardWidget(trade: viewModel);
-            }
+        Widget tradeCard;
+        if (isActive) {
+          final livePrice = _livePrices[trade.stockSymbol] ?? trade.lastPrice;
+          final viewModel = ActiveTradeCardViewModel(
+            trade: trade,
+            currentPrice: livePrice,
+          );
+          // ✅ UPDATED: Pass both handlers to the widget
+          tradeCard = ActiveTradeCardWidget(
+            trade: viewModel,
+            onManualClose: _handleManualClose,
+            onModifyTrade: _handleModifyTrade,
+          );
+        } else {
+          final viewModel = ClosedTradeCardViewModel(trade: trade);
+          tradeCard = ClosedTradeCardWidget(trade: viewModel);
+        }
 
-            return Padding(
-              padding: EdgeInsets.only(top: index == 0 ? 8.0 : 16.0),
-              child: tradeCard,
-            );
-          }).toList(),
+        return Padding(
+          padding: EdgeInsets.only(top: index == 0 ? 8.0 : 16.0),
+          child: tradeCard,
+        );
+      }).toList(),
     );
   }
 }
-
 class _StatCard extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -1160,20 +1394,20 @@ class _AllActiveTradesScreenState extends State<AllActiveTradesScreen> {
 
     _tradesChannel!
         .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'trade_cards',
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'advisor_id',
-            value: advisorId,
-          ),
-          callback: (payload) {
-            if (mounted) {
-              _fetchTradeCards();
-            }
-          },
-        )
+      event: PostgresChangeEvent.all,
+      schema: 'public',
+      table: 'trade_cards',
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'advisor_id',
+        value: advisorId,
+      ),
+      callback: (payload) {
+        if (mounted) {
+          _fetchTradeCards();
+        }
+      },
+    )
         .subscribe();
   }
 
@@ -1195,12 +1429,19 @@ class _AllActiveTradesScreenState extends State<AllActiveTradesScreen> {
           .order('created_at', ascending: false);
 
       final cards =
-          (response as List).map((e) => TradeCardModel.fromJson(e)).toList();
+      (response as List).map((e) => TradeCardModel.fromJson(e)).toList();
+
       if (mounted) {
         setState(() {
           _tradeCards = cards;
           _isLoading = false;
         });
+
+        // NEW: Subscribe to all active trade symbols
+        for (var card in cards) {
+          _apiService.subscribeToInstrument(card.stockSymbol);
+        }
+
         _filterAndRefresh();
         _startPriceTimer();
       }
@@ -1218,7 +1459,7 @@ class _AllActiveTradesScreenState extends State<AllActiveTradesScreen> {
     _timer?.cancel();
     _timer = Timer.periodic(
       const Duration(seconds: 5),
-      (timer) => _updateLivePrices(),
+          (timer) => _updateLivePrices(),
     );
     _updateLivePrices();
   }
@@ -1227,7 +1468,7 @@ class _AllActiveTradesScreenState extends State<AllActiveTradesScreen> {
     if (_tradeCards.isEmpty || !mounted) return;
     try {
       final symbols =
-          _tradeCards.map((card) => card.stockSymbol).toSet().toList();
+      _tradeCards.map((card) => card.stockSymbol).toSet().toList();
       final prices = await _apiService.getLivePrices(symbols);
       if (mounted) {
         setState(() {
@@ -1248,27 +1489,25 @@ class _AllActiveTradesScreenState extends State<AllActiveTradesScreen> {
   }
 
   void _filterAndRefresh() {
-    final allViewModels =
-        _tradeCards.map((trade) {
-          final livePrice = _livePrices[trade.stockSymbol] ?? trade.lastPrice;
-          return ActiveTradeCardViewModel(
-            trade: trade,
-            currentPrice: livePrice,
-          );
-        }).toList();
+    final allViewModels = _tradeCards.map((trade) {
+      final livePrice = _livePrices[trade.stockSymbol] ?? trade.lastPrice;
+      return ActiveTradeCardViewModel(
+        trade: trade,
+        currentPrice: livePrice,
+      );
+    }).toList();
 
     if (_selectedFilter == 'All') {
       _filteredTradeCards = allViewModels;
     } else {
-      _filteredTradeCards =
-          allViewModels.where((vm) {
-            if (_selectedFilter == 'In Profit') return vm.liveReturnValue > 0;
-            if (_selectedFilter == 'In Loss') return vm.liveReturnValue < 0;
-            if (_selectedFilter == 'At Cost') {
-              return vm.liveReturnValue.abs() < 0.1;
-            }
-            return false;
-          }).toList();
+      _filteredTradeCards = allViewModels.where((vm) {
+        if (_selectedFilter == 'In Profit') return vm.liveReturnValue > 0;
+        if (_selectedFilter == 'In Loss') return vm.liveReturnValue < 0;
+        if (_selectedFilter == 'At Cost') {
+          return vm.liveReturnValue.abs() < 0.1;
+        }
+        return false;
+      }).toList();
     }
     setState(() {});
   }
@@ -1276,6 +1515,93 @@ class _AllActiveTradesScreenState extends State<AllActiveTradesScreen> {
   Future<void> _refresh() async {
     _timer?.cancel();
     await _fetchTradeCards();
+  }
+
+  // This is the handler function from the previous step (unchanged)
+  Future<void> _handleManualClose(
+      String tradeId,
+      String newStatus,
+      double closingPrice,
+      ) async {
+    try {
+      // Show a loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+
+      await Supabase.instance.client.from('trade_cards').update({
+        'status': newStatus,
+        'closed_at': 'now()',
+        'last_price': closingPrice,
+      }).eq('id', tradeId);
+
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop(); // Hide loading
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Trade manually closed successfully.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      // Refresh the list to remove the closed trade
+      _fetchTradeCards();
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop(); // Hide loading
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to close trade: $e'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    }
+  }
+
+  // ✅ ADDED: The handler function to update SL/TGT in Supabase
+  Future<void> _handleModifyTrade(
+      String tradeId,
+      double newStopLoss,
+      double newTarget,
+      ) async {
+    try {
+      // Show a loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+
+      await Supabase.instance.client.from('trade_cards').update({
+        'stop_loss': newStopLoss,
+        'target': newTarget,
+      }).eq('id', tradeId);
+
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop(); // Hide loading
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Trade modified successfully.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      // Refresh the list to show the new values
+      _fetchTradeCards();
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop(); // Hide loading
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to modify trade: $e'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    }
   }
 
   @override
@@ -1292,35 +1618,38 @@ class _AllActiveTradesScreenState extends State<AllActiveTradesScreen> {
         Expanded(
           child: RefreshIndicator(
             onRefresh: _refresh,
-            child:
-                _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _filteredTradeCards.isEmpty
-                    ? Center(
-                      child: Text(
-                        _tradeCards.isEmpty
-                            ? 'You have no active trades.'
-                            : 'No trades match the filter.',
-                      ),
-                    )
-                    : ListView.builder(
-                      padding: const EdgeInsets.all(8.0),
-                      itemCount: _filteredTradeCards.length,
-                      itemBuilder: (context, index) {
-                        final viewModel = _filteredTradeCards[index];
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 16.0),
-                          child: ActiveTradeCardWidget(trade: viewModel),
-                        );
-                      },
-                    ),
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _filteredTradeCards.isEmpty
+                ? Center(
+              child: Text(
+                _tradeCards.isEmpty
+                    ? 'You have no active trades.'
+                    : 'No trades match the filter.',
+              ),
+            )
+                : ListView.builder(
+              padding: const EdgeInsets.all(8.0),
+              itemCount: _filteredTradeCards.length,
+              itemBuilder: (context, index) {
+                final viewModel = _filteredTradeCards[index];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16.0),
+                  // ✅ UPDATED: Pass both handlers to the widget
+                  child: ActiveTradeCardWidget(
+                    trade: viewModel,
+                    onManualClose: _handleManualClose,
+                    onModifyTrade: _handleModifyTrade,
+                  ),
+                );
+              },
+            ),
           ),
         ),
       ],
     );
   }
 }
-
 class AllClosedTradesScreen extends StatefulWidget {
   const AllClosedTradesScreen({super.key});
 
@@ -1501,7 +1830,6 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
 
   // Renamed to be more descriptive and avoid conflict
   Future<void> _internalFetchWatchlist() async {
-    // Set loading state only if the list is currently empty
     if (_watchlist.isEmpty) {
       setState(() => _isLoading = true);
     }
@@ -1523,8 +1851,12 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
               .toList();
 
       final allStocks = await _apiService.getAllStocks();
+
+      // Subscribe to all watchlist items
       for (var item in watchlistItems) {
         item.stockData = allStocks[item.stockSymbol];
+        // Subscribe in background (don't await to avoid blocking UI)
+        _apiService.subscribeToInstrument(item.stockSymbol);
       }
 
       if (mounted) {
@@ -1557,7 +1889,7 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
   void _startPriceTimer() {
     _timer?.cancel();
     _timer = Timer.periodic(
-      const Duration(seconds: 5),
+      const Duration(seconds: 2),
       (timer) => _updateLivePrices(),
     );
     _updateLivePrices();
@@ -1591,9 +1923,7 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
           actions: <Widget>[
             TextButton(
               child: const Text('Cancel'),
-              onPressed: () {
-                Navigator.of(dialogContext).pop(); // Close the dialog
-              },
+              onPressed: () => Navigator.of(dialogContext).pop(),
             ),
             TextButton(
               style: TextButton.styleFrom(
@@ -1602,15 +1932,18 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
               child: const Text('Remove'),
               onPressed: () async {
                 try {
-                  // Delete the item from the database using its unique ID
+                  // Delete from database
                   await Supabase.instance.client
                       .from('watchlists')
                       .delete()
                       .match({'id': item.id});
 
+                  // NEW: Unsubscribe from live data
+                  await _apiService.unsubscribeFromInstrument(stockSymbol);
+
                   if (!mounted) return;
 
-                  Navigator.of(dialogContext).pop(); // Close the dialog
+                  Navigator.of(dialogContext).pop();
 
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -1619,7 +1952,6 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
                     ),
                   );
 
-                  // Refresh the watchlist UI
                   _fetchWatchlist();
                 } catch (e) {
                   Navigator.of(dialogContext).pop();
@@ -1768,10 +2100,6 @@ class _WatchlistTileState extends State<_WatchlistTile> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Divider(height: 32),
-
-                  // START OF CHANGES
-
-                  // The old TextButton.icon is replaced with a full-width InkWell
                   InkWell(
                     onTap: () {
                       Navigator.of(context).push(
@@ -1882,34 +2210,38 @@ class _SearchScreenState extends State<SearchScreen> {
   Future<void> _addToWatchlist(String symbol) async {
     try {
       final advisorId = Supabase.instance.client.auth.currentUser!.id;
+
+      // Add to database
       await Supabase.instance.client.from('watchlists').insert({
         'advisor_id': advisorId,
         'stock_symbol': symbol,
       });
 
+      // NEW: Subscribe to live data for this stock
+      await _apiService.subscribeToInstrument(symbol);
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('$symbol added to watchlist'),
-            backgroundColor: Colors.green, // Use a success color
+            content: Text(
+              '$symbol added to watchlist and subscribed for live data',
+            ),
+            backgroundColor: Colors.green,
           ),
         );
         Navigator.pop(context, true);
       }
     } catch (e) {
-      if (!mounted) return; // Guard against async errors after dispose
+      if (!mounted) return;
 
-      // Check if the error is from Supabase and is a unique constraint violation
       if (e is PostgrestException && e.code == '23505') {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('$symbol is already in your watchlist.'),
-            // Use a neutral or warning color, not a hard error color
             backgroundColor: Colors.amber.shade800,
           ),
         );
       } else {
-        // For all other unexpected errors
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error adding to watchlist: ${e.toString()}'),
@@ -2230,6 +2562,8 @@ class _CreateTradeCardScreenState extends State<CreateTradeCardScreen> {
   String _tradeDirection = 'Buy';
   Stock? _selectedStock;
   bool _isLoading = false;
+  bool _isLoadingPrice = false;
+  Timer? _priceTimer;
   final ApiService _apiService = ApiService();
 
   @override
@@ -2241,10 +2575,56 @@ class _CreateTradeCardScreenState extends State<CreateTradeCardScreen> {
     _targetController.addListener(_updateExitZone);
   }
 
-  void _setSelectedStock(Stock stock) {
+  // NEW: Method to fetch both live price AND prev_close from Redis
+  Future<void> _fetchLivePrice() async {
+    if (_selectedStock == null || !mounted) return;
+
+    try {
+      // Fetch complete stock data including ltp and prev_close
+      final stockData = await _apiService.getStockData(_selectedStock!.symbol);
+
+      if (mounted && stockData != null) {
+        setState(() {
+          // Update live price (LTP)
+          if (stockData['ltp'] != null) {
+            final livePrice = (stockData['ltp'] as num).toDouble();
+            _livePriceController.text = livePrice.toStringAsFixed(2);
+
+            // Update entry zone based on new live price
+            final entryZoneStart = (livePrice * 0.99).toStringAsFixed(2);
+            final entryZoneEnd = (livePrice * 1.01).toStringAsFixed(2);
+            _entryZoneController.text = '$entryZoneStart - $entryZoneEnd';
+          }
+
+          // NEW: Update prev_close (Last Close) from Redis data
+          if (stockData['prev_close'] != null) {
+            final prevClose = (stockData['prev_close'] as num).toDouble();
+            _lastPriceController.text = prevClose.toStringAsFixed(2);
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint("Error fetching live price: $e");
+    }
+  }
+
+  void _startPriceTimer() {
+    _priceTimer?.cancel();
+    _priceTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => _fetchLivePrice(),
+    );
+    // Fetch immediately
+    _fetchLivePrice();
+  }
+
+  Future<void> _setSelectedStock(Stock stock) async {
     setState(() {
+      _isLoadingPrice = true;
       _selectedStock = stock;
       _stockSymbolController.text = stock.symbol;
+
+      // Initial values from the Stock object
       final livePrice = stock.entryPrice;
       _livePriceController.text = livePrice.toStringAsFixed(2);
       _lastPriceController.text = stock.lastPrice.toStringAsFixed(2);
@@ -2256,6 +2636,23 @@ class _CreateTradeCardScreenState extends State<CreateTradeCardScreen> {
       _targetController.clear();
       _exitZoneController.clear();
     });
+
+    try {
+      await _apiService.subscribeToInstrument(stock.symbol);
+      debugPrint('✓ Subscribed to ${stock.symbol} for live updates');
+
+      // Wait a bit for subscription to be processed
+      await Future.delayed(const Duration(milliseconds: 1500));
+
+      // Start fetching live prices (which now includes prev_close)
+      _startPriceTimer();
+    } catch (e) {
+      debugPrint('Error subscribing to ${stock.symbol}: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingPrice = false);
+      }
+    }
   }
 
   void _updateExitZone() {
@@ -2288,8 +2685,8 @@ class _CreateTradeCardScreenState extends State<CreateTradeCardScreen> {
         "stop_loss": double.parse(_stopLossController.text),
         "target": double.parse(_targetController.text),
         "trade_direction": _tradeDirection,
-        "trade_category": "Swing", // Placeholder
-        "trade_segment": "Equity", // Placeholder
+        "trade_category": "Swing",
+        "trade_segment": "Equity",
         "entry_zone": _entryZoneController.text,
         "exit_zone": _exitZoneController.text,
       };
@@ -2298,7 +2695,9 @@ class _CreateTradeCardScreenState extends State<CreateTradeCardScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Trade card created successfully!')),
+          const SnackBar(
+            content: Text('Trade card created successfully with live prices!'),
+          ),
         );
         context
             .findAncestorStateOfType<_AdvisorMainScreenState>()
@@ -2320,6 +2719,7 @@ class _CreateTradeCardScreenState extends State<CreateTradeCardScreen> {
 
   @override
   void dispose() {
+    _priceTimer?.cancel();
     _targetController.removeListener(_updateExitZone);
     _stockSymbolController.dispose();
     _livePriceController.dispose();
@@ -2345,9 +2745,21 @@ class _CreateTradeCardScreenState extends State<CreateTradeCardScreen> {
               child: AbsorbPointer(
                 child: TextFormField(
                   controller: _stockSymbolController,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     hintText: 'Search Stock',
-                    suffixIcon: Icon(Icons.search),
+                    suffixIcon:
+                        _isLoadingPrice
+                            ? const Padding(
+                              padding: EdgeInsets.all(12.0),
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            )
+                            : const Icon(Icons.search),
                   ),
                   validator:
                       (value) =>
@@ -2363,7 +2775,22 @@ class _CreateTradeCardScreenState extends State<CreateTradeCardScreen> {
                 Expanded(
                   child: TextFormField(
                     controller: _livePriceController,
-                    decoration: const InputDecoration(labelText: 'Live Price'),
+                    decoration: InputDecoration(
+                      labelText: 'Live Price',
+                      prefixIcon:
+                          _isLoadingPrice
+                              ? const Padding(
+                                padding: EdgeInsets.all(12.0),
+                                child: SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              )
+                              : null,
+                    ),
                     readOnly: true,
                   ),
                 ),
@@ -2371,7 +2798,7 @@ class _CreateTradeCardScreenState extends State<CreateTradeCardScreen> {
                 Expanded(
                   child: TextFormField(
                     controller: _lastPriceController,
-                    decoration: const InputDecoration(labelText: 'Last Price'),
+                    decoration: const InputDecoration(labelText: 'Last Close'),
                     readOnly: true,
                   ),
                 ),
@@ -2577,7 +3004,245 @@ class _CreateTradeCardScreenState extends State<CreateTradeCardScreen> {
 class ActiveTradeCardWidget extends StatelessWidget {
   final ActiveTradeCardViewModel trade;
 
-  const ActiveTradeCardWidget({super.key, required this.trade});
+  // Callback for closing
+  final Function(String tradeId, String newStatus, double closingPrice)
+  onManualClose;
+
+  // ✅ ADDED: A new callback to notify the parent to update the trade
+  final Function(String tradeId, double newStopLoss, double newTarget)
+  onModifyTrade;
+
+  const ActiveTradeCardWidget({
+    super.key,
+    required this.trade,
+    required this.onManualClose,
+    required this.onModifyTrade, // ✅ ADDED: To the constructor
+  });
+
+  // This is the "Manual Close" dialog from the previous step (unchanged)
+  Future<void> _showManualCloseDialog(BuildContext context) async {
+    final theme = Theme.of(context);
+    return showDialog<void>(
+      context: context,
+      // We pass the root context to close it from another dialog
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Manually Close Trade?'),
+          content: Text(
+            'How do you want to close this trade for ${trade.stockSymbol}?\n\n'
+                'Current Price: ${trade.currentPriceFormatted}',
+          ),
+          actionsAlignment: MainAxisAlignment.center,
+          actionsPadding: const EdgeInsets.all(16.0),
+          actions: <Widget>[
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: theme.colorScheme.secondary,
+                  ),
+                  child: const Text('Close as PROFIT'),
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop(); // Close this dialog
+                    onManualClose(
+                      trade.trade.id,
+                      'closed_profit',
+                      trade.currentPrice,
+                    );
+                  },
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: theme.colorScheme.error,
+                  ),
+                  child: const Text('Close as LOSS'),
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop(); // Close this dialog
+                    onManualClose(
+                      trade.trade.id,
+                      'closed_loss',
+                      trade.currentPrice,
+                    );
+                  },
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: theme.colorScheme.tertiary,
+                  ),
+                  child: const Text('Close at COST'),
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop(); // Close this dialog
+                    onManualClose(
+                      trade.trade.id,
+                      'closed_cost',
+                      trade.currentPrice,
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextButton(
+                  child: const Text('Cancel'),
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop();
+                  },
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ✅ ADDED: The new dialog for editing SL/TGT
+  Future<void> _showModifyTradeDialog(BuildContext context) async {
+    final _formKey = GlobalKey<FormState>();
+    final _slController =
+    TextEditingController(text: trade.trade.stopLoss.toString());
+    final _tgtController =
+    TextEditingController(text: trade.trade.target.toString());
+    final tradeDirection = trade.trade.tradeDirection;
+    final entryPrice = trade.trade.entryPrice;
+
+    return showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        // Use StatefulBuilder to manage the form state within the dialog
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Modify Trade'),
+              content: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      controller: _slController,
+                      keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'New Stop Loss',
+                        prefixText: '₹',
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Required';
+                        }
+                        final sl = double.tryParse(value);
+                        if (sl == null) return 'Invalid number';
+                        if (tradeDirection == 'Buy' && sl >= entryPrice) {
+                          return 'SL must be below entry';
+                        }
+                        if (tradeDirection == 'Sell' && sl <= entryPrice) {
+                          return 'SL must be above entry';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _tgtController,
+                      keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'New Target',
+                        prefixText: '₹',
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Required';
+                        }
+                        final tgt = double.tryParse(value);
+                        if (tgt == null) return 'Invalid number';
+                        if (tradeDirection == 'Buy' && tgt <= entryPrice) {
+                          return 'Target must be above entry';
+                        }
+                        if (tradeDirection == 'Sell' && tgt >= entryPrice) {
+                          return 'Target must be below entry';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: <Widget>[
+                TextButton(
+                  child: const Text('Cancel'),
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                ),
+                ElevatedButton(
+                  child: const Text('Save Changes'),
+                  onPressed: () {
+                    if (_formKey.currentState!.validate()) {
+                      final newSl = double.parse(_slController.text);
+                      final newTgt = double.parse(_tgtController.text);
+
+                      // Call the callback to update the database
+                      onModifyTrade(trade.trade.id, newSl, newTgt);
+                      Navigator.of(dialogContext).pop(); // Close this dialog
+                    }
+                  },
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ✅ ADDED: The new *main* options menu
+  Future<void> _showTradeOptionsDialog(BuildContext context) async {
+    return showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: Text(trade.stockSymbol),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ElevatedButton.icon(
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text('Modify SL / Target'),
+                onPressed: () {
+                  Navigator.of(dialogContext).pop(); // Close this menu
+                  _showModifyTradeDialog(context); // Open modify dialog
+                },
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.close_rounded),
+                label: const Text('Manually Close Trade'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.errorContainer,
+                  foregroundColor:
+                  Theme.of(context).colorScheme.onErrorContainer,
+                ),
+                onPressed: () {
+                  Navigator.of(dialogContext).pop(); // Close this menu
+                  _showManualCloseDialog(context); // Open close dialog
+                },
+              ),
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2594,150 +3259,155 @@ class ActiveTradeCardWidget extends StatelessWidget {
     }
 
     final currentStatusColor =
-        trade.isProfit ? theme.colorScheme.secondary : theme.colorScheme.error;
+    trade.isProfit ? theme.colorScheme.secondary : theme.colorScheme.error;
 
     return InkWell(
-      onTap:
-          () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => OpenTradeAnalysis(activeTrade: trade),
-            ),
-          ),
+      // ✅ MODIFIED: onLongPress now shows the main options menu
+      onLongPress: () {
+        _showTradeOptionsDialog(context);
+      },
       borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: theme.cardTheme.color,
-          borderRadius: BorderRadius.circular(16),
-          // UPDATED: Border now uses the dynamic outline color
-          border: Border.all(color: outlineColor, width: 1.5),
+      child: InkWell(
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => OpenTradeAnalysis(activeTrade: trade),
+          ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-                  radius: 24,
-                  child: Text(
-                    trade.stockSymbol.substring(0, 1),
-                    style: TextStyle(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.bold,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: theme.cardTheme.color,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: outlineColor, width: 1.5),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+                    radius: 24,
+                    child: Text(
+                      trade.stockSymbol.substring(0, 1),
+                      style: TextStyle(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          trade.stockSymbol,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          trade.companyName,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.hintColor,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        trade.stockSymbol,
+                        trade.currentPriceFormatted,
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       Text(
-                        trade.companyName,
+                        trade.priceChange,
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.hintColor,
+                          color: currentStatusColor,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      trade.currentPriceFormatted,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      trade.priceChange,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: currentStatusColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            LiveTradeIndicator(
-              stopLoss: trade.trade.stopLoss,
-              target: trade.trade.target,
-              entryPrice: trade.trade.entryPrice,
-              currentPrice: trade.currentPrice,
-              tradeDirection: trade.trade.tradeDirection, // Add this line
-            ),
-            const SizedBox(height: 16),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              decoration: BoxDecoration(
-                color: currentStatusColor.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(8),
+                ],
               ),
-              child: Center(
-                child: Text(
-                  'Live Status: ${trade.liveStatus}',
-                  style: TextStyle(
-                    color: currentStatusColor,
-                    fontWeight: FontWeight.bold,
+              const SizedBox(height: 16),
+              LiveTradeIndicator(
+                stopLoss: trade.trade.stopLoss,
+                target: trade.trade.target,
+                entryPrice: trade.trade.entryPrice,
+                currentPrice: trade.currentPrice,
+                tradeDirection: trade.trade.tradeDirection, // Add this line
+              ),
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: currentStatusColor.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Center(
+                  child: Text(
+                    'Live Status: ${trade.liveStatus}',
+                    style: TextStyle(
+                      color: currentStatusColor,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildStat(
-                  'Estimated Gain',
-                  trade.estimatedGain,
-                  theme.colorScheme.secondary,
-                  context,
-                ),
-                _buildStat(
-                  'Live Return',
-                  trade.liveReturn,
-                  currentStatusColor,
-                  context,
-                  alignment: CrossAxisAlignment.end,
-                ),
-              ],
-            ),
-            Divider(color: theme.dividerColor, height: 32),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildLevel('Entry', trade.entryPrice, context),
-                Container(width: 1, height: 30, color: theme.dividerColor),
-                _buildLevel('Stop Loss', trade.stopLoss, context),
-                Container(width: 1, height: 30, color: theme.dividerColor),
-                _buildLevel('Target', trade.targetPrice, context),
-              ],
-            ),
-          ],
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildStat(
+                    'Estimated Gain',
+                    trade.estimatedGain,
+                    theme.colorScheme.secondary,
+                    context,
+                  ),
+                  _buildStat(
+                    'Live Return',
+                    trade.liveReturn,
+                    currentStatusColor,
+                    context,
+                    alignment: CrossAxisAlignment.end,
+                  ),
+                ],
+              ),
+              Divider(color: theme.dividerColor, height: 32),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildLevel('Entry', trade.entryPrice, context),
+                  Container(width: 1, height: 30, color: theme.dividerColor),
+                  _buildLevel('Stop Loss', trade.stopLoss, context),
+                  Container(width: 1, height: 30, color: theme.dividerColor),
+                  _buildLevel('Target', trade.targetPrice, context),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildStat(
-    String label,
-    String value,
-    Color color,
-    BuildContext context, {
-    CrossAxisAlignment alignment = CrossAxisAlignment.start,
-  }) {
+      String label,
+      String value,
+      Color color,
+      BuildContext context, {
+        CrossAxisAlignment alignment = CrossAxisAlignment.start,
+      }) {
     final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: alignment,
@@ -2775,7 +3445,6 @@ class ActiveTradeCardWidget extends StatelessWidget {
     );
   }
 }
-
 class ClosedTradeCardWidget extends StatelessWidget {
   final ClosedTradeCardViewModel trade;
 
