@@ -358,6 +358,7 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
   }
 
   Widget _buildStatsGrid() {
+    final theme = Theme.of(context);
     final stats = _advisorStats!;
     return GridView.extent(
       maxCrossAxisExtent: 180.0,
@@ -372,25 +373,25 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
           icon: Icons.people_outline,
           label: 'Followers',
           value: stats.followerCount.toString(),
-          color: Colors.blue.shade400,
+          color: theme.colorScheme.primary, // Use AppThemes.primary
         ),
         StatCard(
           icon: Icons.check_circle_outline,
           label: 'Hit Rate',
           value: '${stats.hitRate.toStringAsFixed(1)}%',
-          color: Colors.green.shade400,
+          color: theme.colorScheme.secondary, // Use AppThemes.secondary (green)
         ),
         StatCard(
           icon: Icons.bar_chart,
           label: 'Profitable Trades',
           value: stats.profitableTrades.toString(),
-          color: Colors.amber.shade400,
+          color: theme.colorScheme.tertiary, // Use AppThemes.tertiary (amber)
         ),
         StatCard(
           icon: Icons.history,
           label: 'Total Closed',
           value: stats.totalClosedTrades.toString(),
-          color: Colors.purple.shade400,
+          color: theme.hintColor, // Use a neutral theme color
         ),
       ],
     );

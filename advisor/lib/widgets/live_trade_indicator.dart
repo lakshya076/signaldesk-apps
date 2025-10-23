@@ -30,7 +30,7 @@ class LiveTradeIndicator extends StatelessWidget {
         // NEW
         profitColor: Theme.of(context).colorScheme.secondary,
         lossColor: Theme.of(context).colorScheme.error,
-        textColor: Theme.of(context).textTheme.bodySmall?.color ?? Colors.grey,
+        textColor: Theme.of(context).hintColor,
       ),
     );
   }
@@ -41,7 +41,7 @@ class _TradeIndicatorPainter extends CustomPainter {
   final double target;
   final double entryPrice;
   final double currentPrice;
-  final String tradeDirection; // NEW
+  final String tradeDirection;
   final Color profitColor;
   final Color lossColor;
   final Color textColor;
@@ -51,7 +51,7 @@ class _TradeIndicatorPainter extends CustomPainter {
     required this.target,
     required this.entryPrice,
     required this.currentPrice,
-    required this.tradeDirection, // NEW
+    required this.tradeDirection,
     required this.profitColor,
     required this.lossColor,
     required this.textColor,

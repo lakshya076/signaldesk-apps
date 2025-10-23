@@ -396,7 +396,7 @@ class _CreateTradeCardScreenState extends State<CreateTradeCardScreen> {
                 fontSize: 16,
               ),
               outerColor: Theme.of(context).colorScheme.primary,
-              innerColor: Colors.white,
+              innerColor: Theme.of(context).colorScheme.onPrimary,
               sliderButtonIcon: const Icon(
                 Icons.arrow_forward_ios,
                 color: Colors.blue,

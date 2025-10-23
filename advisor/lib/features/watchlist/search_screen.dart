@@ -48,15 +48,15 @@ class _SearchScreenState extends State<SearchScreen> {
     final query = _searchController.text.toUpperCase();
     setState(() {
       _searchResults =
-      query.isEmpty
-          ? _allStocks.values.toList()
-          : _allStocks.values
-          .where(
-            (stock) =>
-        stock.symbol.toUpperCase().contains(query) ||
-            stock.name.toUpperCase().contains(query),
-      )
-          .toList();
+          query.isEmpty
+              ? _allStocks.values.toList()
+              : _allStocks.values
+                  .where(
+                    (stock) =>
+                        stock.symbol.toUpperCase().contains(query) ||
+                        stock.name.toUpperCase().contains(query),
+                  )
+                  .toList();
     });
   }
 
@@ -79,7 +79,7 @@ class _SearchScreenState extends State<SearchScreen> {
             content: Text(
               '$symbol added to watchlist and subscribed for live data',
             ),
-            backgroundColor: Colors.green,
+            backgroundColor: Theme.of(context).colorScheme.secondary,
           ),
         );
         Navigator.pop(context, true);
@@ -91,7 +91,7 @@ class _SearchScreenState extends State<SearchScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('$symbol is already in your watchlist.'),
-            backgroundColor: Colors.amber.shade800,
+            backgroundColor: Theme.of(context).colorScheme.tertiary,
           ),
         );
       } else {
@@ -138,32 +138,32 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
               Expanded(
                 child:
-                _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _searchResults.isEmpty
-                    ? const Center(child: Text("No stocks found"))
-                    : ListView.builder(
-                  controller: controller,
-                  itemCount: _searchResults.length,
-                  itemBuilder: (context, index) {
-                    final stock = _searchResults[index];
-                    return ListTile(
-                      title: Text(stock.symbol),
-                      subtitle: Text(stock.name),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.add_circle_outline),
-                        onPressed: () {
-                          if (ModalRoute.of(context)?.settings.name ==
-                              'create_trade_search') {
-                            Navigator.pop(context, stock);
-                          } else {
-                            _addToWatchlist(stock.symbol);
-                          }
-                        },
-                      ),
-                    );
-                  },
-                ),
+                    _isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : _searchResults.isEmpty
+                        ? const Center(child: Text("No stocks found"))
+                        : ListView.builder(
+                          controller: controller,
+                          itemCount: _searchResults.length,
+                          itemBuilder: (context, index) {
+                            final stock = _searchResults[index];
+                            return ListTile(
+                              title: Text(stock.symbol),
+                              subtitle: Text(stock.name),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.add_circle_outline),
+                                onPressed: () {
+                                  if (ModalRoute.of(context)?.settings.name ==
+                                      'create_trade_search') {
+                                    Navigator.pop(context, stock);
+                                  } else {
+                                    _addToWatchlist(stock.symbol);
+                                  }
+                                },
+                              ),
+                            );
+                          },
+                        ),
               ),
             ],
           ),

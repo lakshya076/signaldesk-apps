@@ -95,7 +95,7 @@ class ClosedTradeCardWidget extends StatelessWidget {
                       children: [
                         _buildTag("Swing", theme.colorScheme.primary, context),
                         const SizedBox(width: 4),
-                        _buildTag("Equity", Colors.amber.shade700, context),
+                        _buildTag("Equity", theme.colorScheme.tertiary, context),
                       ],
                     ),
                   ],

@@ -148,7 +148,7 @@ class WatchlistScreenState extends State<WatchlistScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text('$stockSymbol removed from watchlist'),
-                      backgroundColor: Colors.red.shade700,
+                      backgroundColor: theme.colorScheme.error,
                     ),
                   );
 

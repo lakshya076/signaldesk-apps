@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:signaldesk_advisor/features/trades/open_trade_analysis.dart';
 import 'package:signaldesk_advisor/view_models/active_trade_card_view_model.dart';
-import 'live_trade_indicator.dart';
+import 'package:signaldesk_advisor/widgets/live_trade_indicator.dart';
 
 class ActiveTradeCardWidget extends StatelessWidget {
   final ActiveTradeCardViewModel trade;
@@ -10,7 +10,7 @@ class ActiveTradeCardWidget extends StatelessWidget {
   final Function(String tradeId, String newStatus, double closingPrice)
   onManualClose;
 
-  // ✅ ADDED: A new callback to notify the parent to update the trade
+  // Callback to notify the parent to update the trade
   final Function(String tradeId, double newStopLoss, double newTarget)
   onModifyTrade;
 
@@ -18,15 +18,15 @@ class ActiveTradeCardWidget extends StatelessWidget {
     super.key,
     required this.trade,
     required this.onManualClose,
-    required this.onModifyTrade, // ✅ ADDED: To the constructor
+    required this.onModifyTrade,
   });
 
-  // This is the "Manual Close" dialog from the previous step (unchanged)
   Future<void> _showManualCloseDialog(BuildContext context) async {
+    // Get the theme from the context
     final theme = Theme.of(context);
+
     return showDialog<void>(
       context: context,
-      // We pass the root context to close it from another dialog
       builder: (BuildContext dialogContext) {
         return AlertDialog(
           title: const Text('Manually Close Trade?'),
@@ -43,10 +43,11 @@ class ActiveTradeCardWidget extends StatelessWidget {
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.colorScheme.secondary,
+                    foregroundColor: theme.colorScheme.onPrimary,
                   ),
                   child: const Text('Close as PROFIT'),
                   onPressed: () {
-                    Navigator.of(dialogContext).pop(); // Close this dialog
+                    Navigator.of(dialogContext).pop();
                     onManualClose(
                       trade.trade.id,
                       'closed_profit',
@@ -58,10 +59,11 @@ class ActiveTradeCardWidget extends StatelessWidget {
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.colorScheme.error,
+                    foregroundColor: theme.colorScheme.onPrimary,
                   ),
                   child: const Text('Close as LOSS'),
                   onPressed: () {
-                    Navigator.of(dialogContext).pop(); // Close this dialog
+                    Navigator.of(dialogContext).pop();
                     onManualClose(
                       trade.trade.id,
                       'closed_loss',
@@ -73,10 +75,12 @@ class ActiveTradeCardWidget extends StatelessWidget {
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.colorScheme.tertiary,
+                    // Use onSurface for better contrast on amber
+                    foregroundColor: theme.colorScheme.onSurface,
                   ),
                   child: const Text('Close at COST'),
                   onPressed: () {
-                    Navigator.of(dialogContext).pop(); // Close this dialog
+                    Navigator.of(dialogContext).pop();
                     onManualClose(
                       trade.trade.id,
                       'closed_cost',
@@ -99,7 +103,7 @@ class ActiveTradeCardWidget extends StatelessWidget {
     );
   }
 
-  // ✅ ADDED: The new dialog for editing SL/TGT
+  // This dialog for editing SL/TGT (unchanged, as it uses theme defaults)
   Future<void> _showModifyTradeDialog(BuildContext context) async {
     final _formKey = GlobalKey<FormState>();
     final _slController = TextEditingController(
@@ -114,7 +118,6 @@ class ActiveTradeCardWidget extends StatelessWidget {
     return showDialog<void>(
       context: context,
       builder: (BuildContext dialogContext) {
-        // Use StatefulBuilder to manage the form state within the dialog
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
@@ -188,9 +191,8 @@ class ActiveTradeCardWidget extends StatelessWidget {
                       final newSl = double.parse(_slController.text);
                       final newTgt = double.parse(_tgtController.text);
 
-                      // Call the callback to update the database
                       onModifyTrade(trade.trade.id, newSl, newTgt);
-                      Navigator.of(dialogContext).pop(); // Close this dialog
+                      Navigator.of(dialogContext).pop();
                     }
                   },
                 ),
@@ -202,8 +204,10 @@ class ActiveTradeCardWidget extends StatelessWidget {
     );
   }
 
-  // ✅ ADDED: The new *main* options menu
   Future<void> _showTradeOptionsDialog(BuildContext context) async {
+    // Get the theme from the context
+    final theme = Theme.of(context);
+
     return showDialog<void>(
       context: context,
       builder: (BuildContext dialogContext) {
@@ -216,9 +220,10 @@ class ActiveTradeCardWidget extends StatelessWidget {
               ElevatedButton.icon(
                 icon: const Icon(Icons.edit_outlined),
                 label: const Text('Modify SL / Target'),
+                // This button will use the default theme style
                 onPressed: () {
-                  Navigator.of(dialogContext).pop(); // Close this menu
-                  _showModifyTradeDialog(context); // Open modify dialog
+                  Navigator.of(dialogContext).pop();
+                  _showModifyTradeDialog(context);
                 },
               ),
               const SizedBox(height: 12),
@@ -226,13 +231,12 @@ class ActiveTradeCardWidget extends StatelessWidget {
                 icon: const Icon(Icons.close_rounded),
                 label: const Text('Manually Close Trade'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.errorContainer,
-                  foregroundColor:
-                      Theme.of(context).colorScheme.onErrorContainer,
+                  backgroundColor: theme.colorScheme.errorContainer,
+                  foregroundColor: theme.colorScheme.onErrorContainer,
                 ),
                 onPressed: () {
-                  Navigator.of(dialogContext).pop(); // Close this menu
-                  _showManualCloseDialog(context); // Open close dialog
+                  Navigator.of(dialogContext).pop();
+                  _showManualCloseDialog(context);
                 },
               ),
             ],
@@ -254,22 +258,21 @@ class ActiveTradeCardWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    // Logic to determine the outline color based on live performance
     final Color outlineColor;
     if (trade.liveReturnValue.abs() < 0.1) {
-      outlineColor = theme.colorScheme.tertiary; // Yellow for At Cost
+      outlineColor = theme.colorScheme.tertiary;
     } else if (trade.isProfit) {
-      outlineColor = theme.colorScheme.secondary; // Green for Profit
+      outlineColor = theme.colorScheme.secondary;
     } else {
-      outlineColor = theme.colorScheme.error; // Red for Loss
+      outlineColor = theme.colorScheme.error;
     }
 
     final currentStatusColor =
         trade.isProfit ? theme.colorScheme.secondary : theme.colorScheme.error;
 
     return InkWell(
-      // ✅ MODIFIED: onLongPress now shows the main options menu
       onLongPress: () {
+        // This now shows the main options menu
         _showTradeOptionsDialog(context);
       },
       borderRadius: BorderRadius.circular(16),
@@ -294,7 +297,7 @@ class ActiveTradeCardWidget extends StatelessWidget {
               Row(
                 children: [
                   CircleAvatar(
-                    backgroundColor: theme.colorScheme.primary.withValues(alpha: .1),
+                    backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
                     radius: 24,
                     child: Text(
                       trade.stockSymbol.substring(0, 1),
@@ -351,14 +354,14 @@ class ActiveTradeCardWidget extends StatelessWidget {
                 target: trade.trade.target,
                 entryPrice: trade.trade.entryPrice,
                 currentPrice: trade.currentPrice,
-                tradeDirection: trade.trade.tradeDirection, // Add this line
+                tradeDirection: trade.trade.tradeDirection,
               ),
               const SizedBox(height: 16),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 decoration: BoxDecoration(
-                  color: currentStatusColor.withValues(alpha: .2),
+                  color: currentStatusColor.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Center(
