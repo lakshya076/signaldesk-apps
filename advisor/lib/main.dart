@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:signaldesk_advisor/core/theme.dart';
 import 'package:signaldesk_advisor/core/theme_provider.dart';
