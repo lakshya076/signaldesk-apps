@@ -297,7 +297,7 @@ class ActiveTradeCardWidget extends StatelessWidget {
               Row(
                 children: [
                   CircleAvatar(
-                    backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+                    backgroundColor: theme.colorScheme.primary.withValues(alpha: .1),
                     radius: 24,
                     child: Text(
                       trade.stockSymbol.substring(0, 1),
@@ -361,7 +361,7 @@ class ActiveTradeCardWidget extends StatelessWidget {
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 decoration: BoxDecoration(
-                  color: currentStatusColor.withOpacity(0.2),
+                  color: currentStatusColor.withValues(alpha: .2),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Center(
