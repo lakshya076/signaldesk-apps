@@ -30,7 +30,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Consumer<ThemeProvider>(
-        builder: (context, themeProvider, child) {
+      builder: (context, themeProvider, child) {
         return MaterialApp(
           title: 'Trade Advisor',
           theme: AppThemes.lightTheme,
@@ -43,11 +43,3 @@ class MyApp extends StatelessWidget {
     );
   }
 }
-
-
-// In main.dart, replace the existing AuthGate widget
-
-// --- ADVISOR UI SCREENS ---
-// In main.dart
-
-// --- WATCHLIST & SEARCH ---

@@ -31,7 +31,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Step 1: Create the auth user. The database trigger will create the base profile rows.
       final response = await Supabase.instance.client.auth.signUp(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
@@ -39,7 +38,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
       );
 
       if (response.user != null && mounted) {
-        // Step 2: Immediately update the new profile and details tables with all the form data.
         await Supabase.instance.client
             .from('profiles')
             .update({

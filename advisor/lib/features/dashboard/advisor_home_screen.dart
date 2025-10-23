@@ -260,7 +260,7 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
     }
   }
 
-  // ✅ ADDED: The handler function to update SL/TGT in Supabase
+  //The handler function to update SL/TGT in Supabase
   Future<void> _handleModifyTrade(
     String tradeId,
     double newStopLoss,
@@ -280,7 +280,7 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
           .eq('id', tradeId);
 
       if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop(); // Hide loading
+      Navigator.of(context, rootNavigator: true).pop();
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -289,11 +289,10 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
         ),
       );
 
-      // Refresh all data on the home screen
       _fetchAdvisorData();
     } catch (e) {
       if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop(); // Hide loading
+      Navigator.of(context, rootNavigator: true).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to modify trade: $e'),
@@ -344,11 +343,9 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
       );
     }
 
-    // Main layout with stats grid and trade lists
     return ListView(
       padding: const EdgeInsets.all(16.0),
       children: [
-        // NEW: Stats Grid Section
         _buildStatsGrid(),
         const SizedBox(height: 24),
         _buildSectionHeader('Active Trades', widget.onViewActive),
@@ -363,8 +360,6 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
   Widget _buildStatsGrid() {
     final stats = _advisorStats!;
     return GridView.extent(
-      // Using GridView.extent creates a responsive grid that automatically
-      // adjusts the number of columns based on available screen width.
       maxCrossAxisExtent: 180.0,
       // Each item will have a maximum width of 180 pixels.
       shrinkWrap: true,
@@ -372,7 +367,6 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
       crossAxisSpacing: 16,
       mainAxisSpacing: 16,
       childAspectRatio: 1.3,
-      // Adjusted for a slightly more balanced card shape
       children: [
         StatCard(
           icon: Icons.people_outline,
@@ -457,7 +451,6 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
                 trade: trade,
                 currentPrice: livePrice,
               );
-              // ✅ UPDATED: Pass both handlers to the widget
               tradeCard = ActiveTradeCardWidget(
                 trade: viewModel,
                 onManualClose: _handleManualClose,

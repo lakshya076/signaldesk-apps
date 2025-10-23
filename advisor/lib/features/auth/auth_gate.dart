@@ -18,8 +18,6 @@ class _AuthGateState extends State<AuthGate> {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return null;
 
-    // CHANGED: Use .maybeSingle() to safely handle cases where the profile doesn't exist.
-    // This returns null instead of throwing an error if no row is found.
     final response =
         await Supabase.instance.client
             .from('profiles')
@@ -44,7 +42,7 @@ class _AuthGateState extends State<AuthGate> {
                 );
               }
 
-              // NEW: Added explicit error handling for unexpected issues
+              // Added explicit error handling for unexpected issues
               if (profileSnapshot.hasError) {
                 return Scaffold(
                   body: Center(

@@ -23,7 +23,6 @@ class AdvisorMainScreenState extends State<AdvisorMainScreen> {
   int _selectedIndex = 0;
   Stock? _stockToCreateTrade;
 
-  // ✅ ADDED: API Service and loading state
   final ApiService _apiService = ApiService();
   bool _isCheckingMarket = false;
 
@@ -31,7 +30,6 @@ class AdvisorMainScreenState extends State<AdvisorMainScreen> {
   final GlobalKey<WatchlistScreenState> _watchlistKey =
       GlobalKey<WatchlistScreenState>();
 
-  // ✅ MODIFIED: _onItemTapped to handle market check
   void onItemTapped(int index) {
     if (index == 4) {
       // User tapped "Create", run our check
@@ -45,7 +43,6 @@ class AdvisorMainScreenState extends State<AdvisorMainScreen> {
     }
   }
 
-  // ✅ ADDED: Helper function to show "Market Closed" dialog
   Future<void> _showMarketClosedDialog() async {
     return showDialog<void>(
       context: context,
@@ -68,7 +65,6 @@ class AdvisorMainScreenState extends State<AdvisorMainScreen> {
     );
   }
 
-  // ✅ ADDED: New function to handle navigation with market check
   Future<void> _navigateToCreateTrade([Stock? stock]) async {
     if (_isCheckingMarket) return; // Prevent double-taps
 
@@ -125,7 +121,6 @@ class AdvisorMainScreenState extends State<AdvisorMainScreen> {
       // Assign the GlobalKey to the WatchlistScreen instance
       WatchlistScreen(
         key: _watchlistKey,
-        // ✅ MODIFIED: Watchlist button now also checks market status
         onCreateTrade: (stock) {
           _navigateToCreateTrade(stock);
         },
