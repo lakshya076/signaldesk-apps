@@ -49,7 +49,9 @@ class ClosedTradeCardWidget extends StatelessWidget {
             Row(
               children: [
                 CircleAvatar(
-                  backgroundColor: theme.colorScheme.primary.withValues(alpha: .1),
+                  backgroundColor: theme.colorScheme.primary.withValues(
+                    alpha: .1,
+                  ),
                   radius: 24,
                   child: Text(
                     trade.stockSymbol.substring(0, 1),
@@ -137,25 +139,6 @@ class ClosedTradeCardWidget extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTag(String text, Color color, BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: .2),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color, width: 1),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
         ),
       ),
     );
