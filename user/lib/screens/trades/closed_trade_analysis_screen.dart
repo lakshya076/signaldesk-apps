@@ -7,8 +7,36 @@ class ClosedTradesAnalysis extends StatelessWidget {
 
   const ClosedTradesAnalysis({super.key, required this.trade});
 
+  String _formatDuration(Duration duration) {
+    if (duration.inDays > 0) {
+      final days = duration.inDays;
+      final hours = duration.inHours % 24;
+      if (hours == 0) return '$days ${days == 1 ? 'day' : 'days'}';
+      return '$days ${days == 1 ? 'day' : 'days'}, $hours ${hours == 1 ? 'hour' : 'hours'}';
+    } else if (duration.inHours > 0) {
+      final hours = duration.inHours;
+      final minutes = duration.inMinutes % 60;
+      if (minutes == 0) return '$hours ${hours == 1 ? 'hour' : 'hours'}';
+      return '$hours ${hours == 1 ? 'hour' : 'hours'}, $minutes ${minutes == 1 ? 'minute' : 'minutes'}';
+    } else if (duration.inMinutes > 0) {
+      final minutes = duration.inMinutes;
+      return '$minutes ${minutes == 1 ? 'minute' : 'minutes'}';
+    } else {
+      final seconds = duration.inSeconds;
+      return '$seconds ${seconds == 1 ? 'second' : 'seconds'}';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final String tradeDuration;
+    if (trade.closedAt != null) {
+      final duration = trade.closedAt!.difference(trade.createdAt);
+      tradeDuration = _formatDuration(duration);
+    } else {
+      tradeDuration = 'N/A'; // Fallback
+    }
+
     return Scaffold(
       appBar: AppBar(title: const Text('Trade Analysis')),
       body: SingleChildScrollView(
@@ -19,7 +47,7 @@ class ClosedTradesAnalysis extends StatelessWidget {
             const SizedBox(height: 24),
             _buildReturnCard(context),
             const SizedBox(height: 16),
-            _buildDurationCard(context),
+            _buildDurationCard(context, tradeDuration),
             const SizedBox(height: 16),
             _buildDetailsCard(context),
           ],
@@ -148,7 +176,7 @@ class ClosedTradesAnalysis extends StatelessWidget {
     );
   }
 
-  Widget _buildDurationCard(BuildContext context) {
+  Widget _buildDurationCard(BuildContext context, String tradeDuration) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -158,7 +186,7 @@ class ClosedTradesAnalysis extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildLabelValueRow(context, 'Trade Duration', '23 Days'),
+                  _buildLabelValueRow(context, 'Trade Duration', tradeDuration),
                   const SizedBox(height: 12),
                   _buildLabelValueRow(
                     context,
