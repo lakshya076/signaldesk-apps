@@ -31,7 +31,13 @@ class ActiveTradeCardViewModel {
   String get priceChange =>
       '${priceChangeValue >= 0 ? '+' : ''}₹${priceChangeValue.toStringAsFixed(2)} (${(priceChangeValue / trade.lastPrice * 100).toStringAsFixed(2)}%)';
 
-  bool get isProfit => currentPrice >= trade.entryPrice;
+  bool get isProfit {
+    if (tradeDirection == 'Buy') {
+      return currentPrice >= trade.entryPrice;
+    } else {
+      return currentPrice <= trade.entryPrice;
+    }
+  }
 
   double get progress {
     if (trade.status != 'open') return isProfit ? 1.0 : 0.0;
@@ -43,7 +49,10 @@ class ActiveTradeCardViewModel {
 
   String get liveStatus {
     if (status != 'open') return status.replaceAll('_', ' ').toUpperCase();
-    if (isProfit) return 'In Profit';
+
+    final pnl = liveReturnValue;
+    if (pnl.abs() < 0.1) return 'At Cost';
+    if (pnl > 0) return 'In Profit';
     return 'In Loss';
   }
 
@@ -52,8 +61,16 @@ class ActiveTradeCardViewModel {
     return '${gain.toStringAsFixed(2)}%';
   }
 
-  double get liveReturnValue =>
-      ((currentPrice - trade.entryPrice) / trade.entryPrice) * 100;
+  double get liveReturnValue {
+    if (trade.entryPrice == 0) return 0.0;
+
+    if (tradeDirection == 'Buy') {
+      return ((currentPrice - trade.entryPrice) / trade.entryPrice) * 100;
+    } else {
+      // For 'Sell' trades, profit is (entry - current)
+      return ((trade.entryPrice - currentPrice) / trade.entryPrice) * 100;
+    }
+  }
 
   String get liveReturn {
     final gain = liveReturnValue;

@@ -22,80 +22,82 @@ class ActiveTradeCardWidget extends StatelessWidget {
   });
 
   Future<void> _showManualCloseDialog(BuildContext context) async {
-    // Get the theme from the context
     final theme = Theme.of(context);
+
+    // Automatically determine the status based on the (now correct) ViewModel
+    final double pnlValue = trade.liveReturnValue;
+    final String newStatus;
+    final String statusMessage;
+    final Color confirmColor;
+    final Color confirmTextColor;
+
+    // Using a 0.1% threshold for "at cost"
+    if (pnlValue.abs() < 0.1) {
+      newStatus = 'closed_cost';
+      statusMessage = 'at COST';
+      confirmColor = theme.colorScheme.tertiary;
+      confirmTextColor =
+          theme.colorScheme.onSurface; // Better contrast for amber
+    } else if (pnlValue > 0) {
+      newStatus = 'closed_profit';
+      statusMessage = 'as PROFIT';
+      confirmColor = theme.colorScheme.secondary;
+      confirmTextColor = theme.colorScheme.onPrimary;
+    } else {
+      newStatus = 'closed_loss';
+      statusMessage = 'as LOSS';
+      confirmColor = theme.colorScheme.error;
+      confirmTextColor = theme.colorScheme.onPrimary;
+    }
 
     return showDialog<void>(
       context: context,
       builder: (BuildContext dialogContext) {
+        // Build a confirmation dialog
         return AlertDialog(
-          title: const Text('Manually Close Trade?'),
-          content: Text(
-            'How do you want to close this trade for ${trade.stockSymbol}?\n\n'
-            'Current Price: ${trade.currentPriceFormatted}',
-          ),
-          actionsAlignment: MainAxisAlignment.center,
-          actionsPadding: const EdgeInsets.all(16.0),
-          actions: <Widget>[
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+          title: const Text('Confirm Manual Close'),
+          content: RichText(
+            text: TextSpan(
+              style: theme.textTheme.bodyMedium, // Default style from theme
               children: [
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.colorScheme.secondary,
-                    foregroundColor: theme.colorScheme.onPrimary,
-                  ),
-                  child: const Text('Close as PROFIT'),
-                  onPressed: () {
-                    Navigator.of(dialogContext).pop();
-                    onManualClose(
-                      trade.trade.id,
-                      'closed_profit',
-                      trade.currentPrice,
-                    );
-                  },
+                TextSpan(
+                  text:
+                      'Are you sure you want to close this trade for ${trade.stockSymbol}?\n\n'
+                      'It will be closed ',
                 ),
-                const SizedBox(height: 8),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.colorScheme.error,
-                    foregroundColor: theme.colorScheme.onPrimary,
-                  ),
-                  child: const Text('Close as LOSS'),
-                  onPressed: () {
-                    Navigator.of(dialogContext).pop();
-                    onManualClose(
-                      trade.trade.id,
-                      'closed_loss',
-                      trade.currentPrice,
-                    );
-                  },
+                TextSpan(
+                  text: statusMessage,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
-                const SizedBox(height: 8),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.colorScheme.tertiary,
-                    // Use onSurface for better contrast on amber
-                    foregroundColor: theme.colorScheme.onSurface,
-                  ),
-                  child: const Text('Close at COST'),
-                  onPressed: () {
-                    Navigator.of(dialogContext).pop();
-                    onManualClose(
-                      trade.trade.id,
-                      'closed_cost',
-                      trade.currentPrice,
-                    );
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextButton(
-                  child: const Text('Cancel'),
-                  onPressed: () {
-                    Navigator.of(dialogContext).pop();
-                  },
+                TextSpan(
+                  text:
+                      '.\n\n'
+                      'Current Price: ${trade.currentPriceFormatted}\n'
+                      'Live Return: ${trade.liveReturn}',
                 ),
               ],
+            ),
+          ),
+          actions: <Widget>[
+            // "Cancel" button
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+            ),
+            // "Confirm" button, styled based on the status
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: confirmColor,
+                foregroundColor: confirmTextColor,
+              ),
+              child: const Text('Confirm Close'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                // Call the callback with the auto-determined status
+                onManualClose(trade.trade.id, newStatus, trade.currentPrice);
+              },
             ),
           ],
         );
@@ -103,7 +105,6 @@ class ActiveTradeCardWidget extends StatelessWidget {
     );
   }
 
-  // This dialog for editing SL/TGT (unchanged, as it uses theme defaults)
   Future<void> _showModifyTradeDialog(BuildContext context) async {
     final _formKey = GlobalKey<FormState>();
     final _slController = TextEditingController(
@@ -142,11 +143,21 @@ class ActiveTradeCardWidget extends StatelessWidget {
                         }
                         final sl = double.tryParse(value);
                         if (sl == null) return 'Invalid number';
-                        if (tradeDirection == 'Buy' && sl >= entryPrice) {
-                          return 'SL must be below entry';
-                        }
-                        if (tradeDirection == 'Sell' && sl <= entryPrice) {
-                          return 'SL must be above entry';
+                        if (tradeDirection == 'Buy') {
+                          if (sl >= entryPrice) {
+                            return 'SL must be below entry';
+                          }
+                          if (sl >= trade.currentPrice) {
+                            return 'SL must be below current price';
+                          }
+                        } else {
+                          // 'Sell'
+                          if (sl <= entryPrice) {
+                            return 'SL must be above entry';
+                          }
+                          if (sl <= trade.currentPrice) {
+                            return 'SL must be above current price';
+                          }
                         }
                         return null;
                       },
@@ -167,11 +178,21 @@ class ActiveTradeCardWidget extends StatelessWidget {
                         }
                         final tgt = double.tryParse(value);
                         if (tgt == null) return 'Invalid number';
-                        if (tradeDirection == 'Buy' && tgt <= entryPrice) {
-                          return 'Target must be above entry';
-                        }
-                        if (tradeDirection == 'Sell' && tgt >= entryPrice) {
-                          return 'Target must be below entry';
+                        if (tradeDirection == 'Buy') {
+                          if (tgt <= entryPrice) {
+                            return 'Target must be above entry';
+                          }
+                          if (tgt <= trade.currentPrice) {
+                            return 'Target must be above current price';
+                          }
+                        } else {
+                          // 'Sell'
+                          if (tgt >= entryPrice) {
+                            return 'Target must be below entry';
+                          }
+                          if (tgt >= trade.currentPrice) {
+                            return 'Target must be below current price';
+                          }
                         }
                         return null;
                       },
@@ -270,9 +291,10 @@ class ActiveTradeCardWidget extends StatelessWidget {
     final currentStatusColor =
         trade.isProfit ? theme.colorScheme.secondary : theme.colorScheme.error;
 
-    final priceChangeColor = trade.priceChangeValue >= 0
-        ? theme.colorScheme.secondary
-        : theme.colorScheme.error;
+    final priceChangeColor =
+        trade.priceChangeValue >= 0
+            ? theme.colorScheme.secondary
+            : theme.colorScheme.error;
 
     return InkWell(
       onLongPress: () {
@@ -301,7 +323,9 @@ class ActiveTradeCardWidget extends StatelessWidget {
               Row(
                 children: [
                   CircleAvatar(
-                    backgroundColor: theme.colorScheme.primary.withValues(alpha: .1),
+                    backgroundColor: theme.colorScheme.primary.withValues(
+                      alpha: .1,
+                    ),
                     radius: 24,
                     child: Text(
                       trade.stockSymbol.substring(0, 1),
