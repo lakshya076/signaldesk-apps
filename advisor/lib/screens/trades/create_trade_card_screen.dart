@@ -6,7 +6,6 @@ import 'package:signaldesk_advisor/screens/watchlist/search_screen.dart';
 import 'package:signaldesk_advisor/models/stock.dart';
 import 'package:signaldesk_advisor/services/api_service.dart';
 
-
 class CreateTradeCardScreen extends StatefulWidget {
   final Stock? preselectedStock;
 
@@ -33,6 +32,18 @@ class _CreateTradeCardScreenState extends State<CreateTradeCardScreen> {
   bool _isLoadingPrice = false;
   Timer? _priceTimer;
   final ApiService _apiService = ApiService();
+
+  final List<String> _tradeCategories = [
+    'Swing',
+    'Intraday',
+    'Short Term',
+    'Medium Term',
+    'Long Term',
+  ];
+  final List<String> _tradeSegments = ['Equity'];
+
+  String _selectedCategory = 'Swing';
+  String _selectedSegment = 'Equity';
 
   @override
   void initState() {
@@ -80,7 +91,7 @@ class _CreateTradeCardScreenState extends State<CreateTradeCardScreen> {
     _priceTimer?.cancel();
     _priceTimer = Timer.periodic(
       const Duration(seconds: 5),
-          (_) => _fetchLivePrice(),
+      (_) => _fetchLivePrice(),
     );
     // Fetch immediately
     _fetchLivePrice();
@@ -153,8 +164,8 @@ class _CreateTradeCardScreenState extends State<CreateTradeCardScreen> {
         "stop_loss": double.parse(_stopLossController.text),
         "target": double.parse(_targetController.text),
         "trade_direction": _tradeDirection,
-        "trade_category": "Swing",
-        "trade_segment": "Equity",
+        "trade_category": _selectedCategory,
+        "trade_segment": _selectedSegment,
         "entry_zone": _entryZoneController.text,
         "exit_zone": _exitZoneController.text,
       };
@@ -167,9 +178,9 @@ class _CreateTradeCardScreenState extends State<CreateTradeCardScreen> {
             content: Text('Trade card created successfully with live prices!'),
           ),
         );
-        context
-            .findAncestorStateOfType<AdvisorMainScreenState>()
-            ?.onItemTapped(0);
+        context.findAncestorStateOfType<AdvisorMainScreenState>()?.onItemTapped(
+          0,
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -216,24 +227,24 @@ class _CreateTradeCardScreenState extends State<CreateTradeCardScreen> {
                   decoration: InputDecoration(
                     hintText: 'Search Stock',
                     suffixIcon:
-                    _isLoadingPrice
-                        ? const Padding(
-                      padding: EdgeInsets.all(12.0),
-                      child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                        ),
-                      ),
-                    )
-                        : const Icon(Icons.search),
+                        _isLoadingPrice
+                            ? const Padding(
+                              padding: EdgeInsets.all(12.0),
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            )
+                            : const Icon(Icons.search),
                   ),
                   validator:
                       (value) =>
-                  (value == null || value.isEmpty)
-                      ? 'Please select a stock'
-                      : null,
+                          (value == null || value.isEmpty)
+                              ? 'Please select a stock'
+                              : null,
                 ),
               ),
             ),
@@ -246,18 +257,18 @@ class _CreateTradeCardScreenState extends State<CreateTradeCardScreen> {
                     decoration: InputDecoration(
                       labelText: 'Live Price',
                       prefixIcon:
-                      _isLoadingPrice
-                          ? const Padding(
-                        padding: EdgeInsets.all(12.0),
-                        child: SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                          ),
-                        ),
-                      )
-                          : null,
+                          _isLoadingPrice
+                              ? const Padding(
+                                padding: EdgeInsets.all(12.0),
+                                child: SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              )
+                              : null,
                     ),
                     readOnly: true,
                   ),
@@ -361,9 +372,56 @@ class _CreateTradeCardScreenState extends State<CreateTradeCardScreen> {
             ),
             Row(
               children: [
-                Expanded(child: _buildDropdownPlaceholder('Swing')),
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    value: _selectedCategory,
+                    items:
+                        _tradeCategories.map((String category) {
+                          return DropdownMenuItem<String>(
+                            value: category,
+                            child: Text(category),
+                          );
+                        }).toList(),
+                    onChanged: (String? newValue) {
+                      setState(() {
+                        _selectedCategory = newValue!;
+                      });
+                    },
+                    decoration: const InputDecoration(
+                      hintText: 'Select Category',
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 16,
+                      ),
+                    ),
+                    validator: (value) => value == null ? 'Required' : null,
+                  ),
+                ),
                 const SizedBox(width: 16),
-                Expanded(child: _buildDropdownPlaceholder('Equity')),
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    value: _selectedSegment,
+                    items:
+                        _tradeSegments.map((String segment) {
+                          return DropdownMenuItem<String>(
+                            value: segment,
+                            child: Text(segment),
+                          );
+                        }).toList(),
+                    onChanged: (String? newValue) {
+                      setState(() {
+                        _selectedSegment = newValue!;
+                      });
+                    },
+                    decoration: const InputDecoration(
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 16,
+                      ),
+                    ),
+                    validator: (value) => value == null ? 'Required' : null,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 24),
@@ -389,27 +447,27 @@ class _CreateTradeCardScreenState extends State<CreateTradeCardScreen> {
             _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : SlideAction(
-              key: _slideActionKey,
-              text: 'Swipe to Create Trade Idea',
-              textStyle: TextStyle(
-                color: Theme.of(context).colorScheme.onPrimary,
-                fontSize: 16,
-              ),
-              outerColor: Theme.of(context).colorScheme.primary,
-              innerColor: Theme.of(context).colorScheme.onPrimary,
-              sliderButtonIcon: const Icon(
-                Icons.arrow_forward_ios,
-                color: Colors.blue,
-              ),
-              onSubmit: () {
-                if (_formKey.currentState!.validate()) {
-                  _createTrade();
-                } else {
-                  _slideActionKey.currentState?.reset();
-                }
-                return null;
-              },
-            ),
+                  key: _slideActionKey,
+                  text: 'Swipe to Create Trade Idea',
+                  textStyle: TextStyle(
+                    color: Theme.of(context).colorScheme.onPrimary,
+                    fontSize: 16,
+                  ),
+                  outerColor: Theme.of(context).colorScheme.primary,
+                  innerColor: Theme.of(context).colorScheme.onPrimary,
+                  sliderButtonIcon: const Icon(
+                    Icons.arrow_forward_ios,
+                    color: Colors.blue,
+                  ),
+                  onSubmit: () {
+                    if (_formKey.currentState!.validate()) {
+                      _createTrade();
+                    } else {
+                      _slideActionKey.currentState?.reset();
+                    }
+                    return null;
+                  },
+                ),
           ],
         ),
       ),
@@ -433,38 +491,17 @@ class _CreateTradeCardScreenState extends State<CreateTradeCardScreen> {
       onPressed: () => setState(() => _tradeDirection = direction),
       style: ElevatedButton.styleFrom(
         backgroundColor:
-        isSelected
-            ? theme.colorScheme.primary
-            : theme.inputDecorationTheme.fillColor,
+            isSelected
+                ? theme.colorScheme.primary
+                : theme.inputDecorationTheme.fillColor,
         foregroundColor:
-        isSelected
-            ? theme.colorScheme.onPrimary
-            : theme.colorScheme.onSurface,
+            isSelected
+                ? theme.colorScheme.onPrimary
+                : theme.colorScheme.onSurface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         padding: const EdgeInsets.symmetric(vertical: 14),
       ),
       child: Text(direction),
-    );
-  }
-
-  Widget _buildDropdownPlaceholder(String hint) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-      decoration: BoxDecoration(
-        color: theme.inputDecorationTheme.fillColor,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            hint,
-            style: TextStyle(color: theme.textTheme.bodyMedium?.color),
-          ),
-          Icon(Icons.arrow_drop_down, color: theme.hintColor),
-        ],
-      ),
     );
   }
 }
