@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import 'package:signaldesk_advisor/features/advisor_home_screen.dart';
-import 'package:signaldesk_advisor/features/trades/all_active_trades_screen.dart';
-import 'package:signaldesk_advisor/features/trades/all_closed_trades_screen.dart';
-import 'package:signaldesk_advisor/features/trades/create_trade_card_screen.dart';
-import 'package:signaldesk_advisor/features/watchlist/search_screen.dart';
-import 'package:signaldesk_advisor/features/watchlist/watchlist_screen.dart';
+import 'package:signaldesk_advisor/screens/advisor_home_screen.dart';
+import 'package:signaldesk_advisor/screens/trades/all_active_trades_screen.dart';
+import 'package:signaldesk_advisor/screens/trades/all_closed_trades_screen.dart';
+import 'package:signaldesk_advisor/screens/trades/create_trade_card_screen.dart';
+import 'package:signaldesk_advisor/screens/watchlist/search_screen.dart';
+import 'package:signaldesk_advisor/screens/watchlist/watchlist_screen.dart';
 import 'package:signaldesk_advisor/models/stock.dart';
 import 'package:signaldesk_advisor/services/api_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';

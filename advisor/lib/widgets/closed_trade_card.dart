@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:signaldesk_advisor/features/trades/closed_trades_analysis.dart';
+import 'package:signaldesk_advisor/screens/trades/closed_trades_analysis.dart';
 import 'package:signaldesk_advisor/view_models/closed_trade_card_view_model.dart';
 
 class ClosedTradeCardWidget extends StatelessWidget {

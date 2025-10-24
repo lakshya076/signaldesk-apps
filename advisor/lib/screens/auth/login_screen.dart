@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:signaldesk_advisor/features/auth/signup_screen.dart';
+import 'package:signaldesk_advisor/screens/auth/signup_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class LoginScreen extends StatefulWidget {

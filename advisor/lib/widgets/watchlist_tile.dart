@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:signaldesk_advisor/features/watchlist/set_alert_screen.dart';
+import 'package:signaldesk_advisor/screens/watchlist/set_alert_screen.dart';
 import 'package:signaldesk_advisor/models/stock.dart';
 
 class WatchlistTile extends StatefulWidget {
