@@ -50,22 +50,20 @@ class _UserActiveTradesScreenState extends State<UserActiveTradesScreen> {
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'trade_cards',
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'status',
-            value: 'open',
-          ),
           callback: (payload) {
-            if (!mounted) return;
-            debugPrint(
-              "UserActiveTradesScreen: Realtime event received. Type: ${payload.eventType}, Table: ${payload.table}",
-            );
             if (!mounted) {
               debugPrint(
                 "UserActiveTradesScreen: Received realtime event but screen is not mounted. Ignoring.",
               );
               return;
             }
+
+            debugPrint(
+              "UserActiveTradesScreen: Realtime event received. Type: ${payload.eventType}, Table: ${payload.table}",
+            );
+
+            _fetchInitialTradeCards();
+
             final eventType = payload.eventType;
             final newRecord = payload.newRecord;
 

@@ -59,16 +59,19 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
             schema: 'public',
             table: 'trade_cards',
             callback: (payload) {
-              if (!mounted) return;
-              debugPrint(
-                "UserHomeScreen: Realtime event received. Type: ${payload.eventType}, Table: ${payload.table}",
-              );
               if (!mounted) {
                 debugPrint(
                   "UserHomeScreen: Received realtime event but screen is not mounted. Ignoring.",
                 );
                 return;
               }
+
+              debugPrint(
+                "UserHomeScreen: Realtime event received. Type: ${payload.eventType}, Table: ${payload.table}",
+              );
+
+              _fetchTradeCards();
+
               final eventType = payload.eventType;
               final newRecord = payload.newRecord;
 
