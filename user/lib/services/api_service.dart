@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  final String _apiBaseUrl = 'https://ee65c42e95ef.ngrok-free.app';
+  final String _apiBaseUrl = 'https://6f974a04bb48.ngrok-free.app';
 
   Future<Map<String, double>> getLivePrices(List<String> symbols) async {
     if (symbols.isEmpty) return {};

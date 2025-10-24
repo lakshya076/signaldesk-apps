@@ -109,6 +109,7 @@ class _OpenTradeAnalysisState extends State<OpenTradeAnalysis> {
 
   @override
   Widget build(BuildContext context) {
+    // The viewModel is now correctly initialized with direction-aware logic
     final viewModel = ActiveTradeCardViewModel(
       trade: _tradeData,
       currentPrice: _livePrice,
@@ -178,11 +179,39 @@ class _OpenTradeAnalysisState extends State<OpenTradeAnalysis> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                trade.stockSymbol,
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+              // MODIFIED: Added Row to include SELL tag
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Text(
+                    trade.stockSymbol,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  // ADDED: "SELL" tag
+                  if (trade.isSellTrade)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8.0),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.error,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'SELL',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.onError,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
               Text(
                 trade.companyName,
