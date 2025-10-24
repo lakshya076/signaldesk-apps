@@ -34,9 +34,12 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
   final _apiService = ApiService();
   RealtimeChannel? _tradesChannel;
 
+  Set<String> _currentlySubscribedSymbols = {};
+
   @override
   void initState() {
     super.initState();
+    debugPrint("UserHomeScreen: initState called.");
     _fetchTradeCards();
     Provider.of<AdvisorFilterProvider>(
       context,
@@ -56,7 +59,86 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
             schema: 'public',
             table: 'trade_cards',
             callback: (payload) {
-              if (mounted) _fetchTradeCards();
+              if (!mounted) return;
+              debugPrint(
+                "UserHomeScreen: Realtime event received. Type: ${payload.eventType}, Table: ${payload.table}",
+              );
+              if (!mounted) {
+                debugPrint(
+                  "UserHomeScreen: Received realtime event but screen is not mounted. Ignoring.",
+                );
+                return;
+              }
+              final eventType = payload.eventType;
+              final newRecord = payload.newRecord;
+
+              if (eventType == PostgresChangeEvent.insert) {
+                debugPrint("UserHomeScreen: Realtime INSERT detected.");
+                try {
+                  final newTrade = TradeCardModel.fromJson(newRecord);
+                  debugPrint(
+                    "UserHomeScreen: Inserted Trade - Symbol: ${newTrade.stockSymbol}, Status: ${newTrade.status}",
+                  );
+                  if (newTrade.status == 'open') {
+                    if (!_currentlySubscribedSymbols.contains(
+                      newTrade.stockSymbol,
+                    )) {
+                      debugPrint(
+                        "UserHomeScreen: New active symbol found via INSERT: ${newTrade.stockSymbol}. Subscribing...",
+                      );
+                      _apiService.subscribeToInstrument(newTrade.stockSymbol);
+                      _currentlySubscribedSymbols.add(newTrade.stockSymbol);
+                    } else {
+                      debugPrint(
+                        "UserHomeScreen: New active symbol ${newTrade.stockSymbol} already tracked. Skipping subscription.",
+                      );
+                    }
+                  }
+                } catch (e) {
+                  debugPrint(
+                    "UserHomeScreen: Error processing INSERT payload: $e",
+                  );
+                }
+              } else if (eventType == PostgresChangeEvent.update) {
+                debugPrint("UserHomeScreen: Realtime UPDATE detected.");
+                try {
+                  final updatedTrade = TradeCardModel.fromJson(newRecord);
+                  debugPrint(
+                    "UserHomeScreen: Updated Trade - Symbol: ${updatedTrade.stockSymbol}, Status: ${updatedTrade.status}",
+                  );
+
+                  // Check if it BECAME open
+                  if (updatedTrade.status == 'open' &&
+                      !_currentlySubscribedSymbols.contains(
+                        updatedTrade.stockSymbol,
+                      )) {
+                    debugPrint(
+                      "UserHomeScreen: Trade became active via UPDATE: ${updatedTrade.stockSymbol}. Subscribing...",
+                    );
+                    _apiService.subscribeToInstrument(updatedTrade.stockSymbol);
+                    _currentlySubscribedSymbols.add(updatedTrade.stockSymbol);
+                  } else if (updatedTrade.status != 'open' &&
+                      _currentlySubscribedSymbols.contains(
+                        updatedTrade.stockSymbol,
+                      )) {
+                    debugPrint(
+                      "UserHomeScreen: Trade became inactive via UPDATE: ${updatedTrade.stockSymbol}. Consider unsubscribing.",
+                    );
+                  } else if (updatedTrade.status == 'open') {
+                    debugPrint(
+                      "UserHomeScreen: Updated active trade ${updatedTrade.stockSymbol} already tracked. Skipping subscription.",
+                    );
+                  }
+                } catch (e) {
+                  debugPrint(
+                    "UserHomeScreen: Error processing UPDATE payload: $e",
+                  );
+                }
+                debugPrint(
+                  "UserHomeScreen: Triggering UI refresh via _fetchTradeCards() after realtime event.",
+                );
+                _fetchTradeCards();
+              }
             },
           )
           .subscribe();
@@ -107,6 +189,17 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
       }
       if (!mounted) return;
       final allCards = response.map((e) => TradeCardModel.fromJson(e)).toList();
+
+      final newSymbolSet =
+          allCards
+              .where((c) => c.status == 'open')
+              .map((c) => c.stockSymbol)
+              .toSet();
+      debugPrint(
+        "UserHomeScreen: Updating tracked symbols. Old: ${_currentlySubscribedSymbols.length}, New: ${newSymbolSet.length}",
+      );
+      _currentlySubscribedSymbols = newSymbolSet;
+
       setState(() {
         _activeTrades = allCards.where((c) => c.status == 'open').toList();
         _closedTrades = allCards.where((c) => c.status != 'open').toList();

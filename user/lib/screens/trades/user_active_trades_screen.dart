@@ -27,9 +27,12 @@ class _UserActiveTradesScreenState extends State<UserActiveTradesScreen> {
   String _selectedFilter = 'All';
   RealtimeChannel? _tradesChannel;
 
+  Set<String> _currentlySubscribedSymbols = {};
+
   @override
   void initState() {
     super.initState();
+    debugPrint("UserHomeScreen: initState called.");
     _fetchInitialTradeCards();
     Provider.of<AdvisorFilterProvider>(
       context,
@@ -53,7 +56,86 @@ class _UserActiveTradesScreenState extends State<UserActiveTradesScreen> {
             value: 'open',
           ),
           callback: (payload) {
-            if (mounted) _fetchInitialTradeCards();
+            if (!mounted) return;
+            debugPrint(
+              "UserActiveTradesScreen: Realtime event received. Type: ${payload.eventType}, Table: ${payload.table}",
+            );
+            if (!mounted) {
+              debugPrint(
+                "UserActiveTradesScreen: Received realtime event but screen is not mounted. Ignoring.",
+              );
+              return;
+            }
+            final eventType = payload.eventType;
+            final newRecord = payload.newRecord;
+
+            if (eventType == PostgresChangeEvent.insert) {
+              debugPrint("UserActiveTradesScreen: Realtime INSERT detected.");
+              try {
+                final newTrade = TradeCardModel.fromJson(newRecord);
+                debugPrint(
+                  "UserActiveTradesScreen: Inserted Trade - Symbol: ${newTrade.stockSymbol}, Status: ${newTrade.status}",
+                );
+                if (newTrade.status == 'open') {
+                  if (!_currentlySubscribedSymbols.contains(
+                    newTrade.stockSymbol,
+                  )) {
+                    debugPrint(
+                      "UserActiveTradesScreen: New active symbol found via INSERT: ${newTrade.stockSymbol}. Subscribing...",
+                    );
+                    _apiService.subscribeToInstrument(newTrade.stockSymbol);
+                    _currentlySubscribedSymbols.add(newTrade.stockSymbol);
+                  } else {
+                    debugPrint(
+                      "UserActiveTradesScreen: New active symbol ${newTrade.stockSymbol} already tracked. Skipping subscription.",
+                    );
+                  }
+                }
+              } catch (e) {
+                debugPrint(
+                  "UserActiveTradesScreen: Error processing INSERT payload: $e",
+                );
+              }
+            } else if (eventType == PostgresChangeEvent.update) {
+              debugPrint("UserActiveTradesScreen: Realtime UPDATE detected.");
+              try {
+                final updatedTrade = TradeCardModel.fromJson(newRecord);
+                debugPrint(
+                  "UserActiveTradesScreen: Updated Trade - Symbol: ${updatedTrade.stockSymbol}, Status: ${updatedTrade.status}",
+                );
+
+                // Check if it BECAME open
+                if (updatedTrade.status == 'open' &&
+                    !_currentlySubscribedSymbols.contains(
+                      updatedTrade.stockSymbol,
+                    )) {
+                  debugPrint(
+                    "UserActiveTradesScreen: Trade became active via UPDATE: ${updatedTrade.stockSymbol}. Subscribing...",
+                  );
+                  _apiService.subscribeToInstrument(updatedTrade.stockSymbol);
+                  _currentlySubscribedSymbols.add(updatedTrade.stockSymbol);
+                } else if (updatedTrade.status != 'open' &&
+                    _currentlySubscribedSymbols.contains(
+                      updatedTrade.stockSymbol,
+                    )) {
+                  debugPrint(
+                    "UserActiveTradesScreen: Trade became inactive via UPDATE: ${updatedTrade.stockSymbol}. Consider unsubscribing.",
+                  );
+                } else if (updatedTrade.status == 'open') {
+                  debugPrint(
+                    "UserActiveTradesScreen: Updated active trade ${updatedTrade.stockSymbol} already tracked. Skipping subscription.",
+                  );
+                }
+              } catch (e) {
+                debugPrint(
+                  "UserActiveTradesScreen: Error processing UPDATE payload: $e",
+                );
+              }
+              debugPrint(
+                "UserActiveTradesScreen: Triggering UI refresh via _fetchInitialTradeCards() after realtime event.",
+              );
+              _fetchInitialTradeCards();
+            }
           },
         )
         .subscribe();
@@ -84,7 +166,7 @@ class _UserActiveTradesScreenState extends State<UserActiveTradesScreen> {
       List<dynamic> response;
 
       if (selectedIds.isEmpty) {
-        // No filter needed - get all open trades
+        // Get all open trades
         response = await Supabase.instance.client
             .from('trade_cards')
             .select('*, profiles(first_name, last_name)')
@@ -105,6 +187,12 @@ class _UserActiveTradesScreenState extends State<UserActiveTradesScreen> {
 
       if (!mounted) return;
       final cards = response.map((e) => TradeCardModel.fromJson(e)).toList();
+
+      _currentlySubscribedSymbols =
+          cards
+              .where((c) => c.status == 'open')
+              .map((c) => c.stockSymbol)
+              .toSet();
 
       if (mounted) {
         setState(() {

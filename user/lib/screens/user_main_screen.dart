@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:signaldesk_user/core/theme_provider.dart';
+import 'package:signaldesk_user/services/api_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:signaldesk_user/screens/user_home_screen.dart';
 import 'package:signaldesk_user/screens/trades/user_active_trades_screen.dart';
@@ -18,11 +19,76 @@ class UserMainScreen extends StatefulWidget {
 class _UserMainScreenState extends State<UserMainScreen> {
   int _selectedIndex = 0;
   String _userName = 'User';
+  final ApiService _apiService = ApiService();
 
   @override
   void initState() {
     super.initState();
     _fetchUserName();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _subscribeToActiveTradeInstruments();
+    });
+  }
+
+  Future<void> _subscribeToActiveTradeInstruments() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return; // Not logged in
+
+    final userId = user.id;
+    final Set<String> symbolsToSubscribe = {};
+
+    try {
+      // 1. Get IDs of subscribed advisors
+      final subscriptionsResponse = await Supabase.instance.client
+          .from('subscriptions')
+          .select('advisor_id')
+          .eq('user_id', userId);
+
+      if (subscriptionsResponse.isEmpty) {
+        debugPrint("User has no subscriptions.");
+        return;
+      }
+
+      final advisorIds =
+          subscriptionsResponse
+              .map((sub) => sub['advisor_id'] as String)
+              .toList();
+
+      // 2. Get active trade symbols for those advisors
+      final activeTradesResponse = await Supabase.instance.client
+          .from('trade_cards')
+          .select('stock_symbol')
+          .inFilter('advisor_id', advisorIds)
+          .eq('status', 'open');
+
+      for (var trade in activeTradesResponse) {
+        if (trade['stock_symbol'] != null) {
+          symbolsToSubscribe.add(trade['stock_symbol']);
+        }
+      }
+
+      // 3. Bulk subscribe if there are any symbols
+      if (symbolsToSubscribe.isNotEmpty) {
+        debugPrint(
+          'User App: Attempting to bulk subscribe to active trade symbols: ${symbolsToSubscribe.toList()}',
+        );
+        await _apiService.bulkSubscribeInstruments(symbolsToSubscribe.toList());
+      } else {
+        debugPrint(
+          "User App: No active trade symbols found for subscribed advisors.",
+        );
+      }
+    } catch (e) {
+      debugPrint("User App: Error fetching symbols for bulk subscription: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Could not set up live data subscriptions: $e"),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _fetchUserName() async {
