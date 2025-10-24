@@ -81,25 +81,6 @@ class ClosedTradeCardWidget extends StatelessWidget {
                     ],
                   ),
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      "Analyst Signal",
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.hintColor,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        _buildTag("Swing", theme.colorScheme.primary, context),
-                        const SizedBox(width: 4),
-                        _buildTag("Equity", theme.colorScheme.tertiary, context),
-                      ],
-                    ),
-                  ],
-                ),
               ],
             ),
             const SizedBox(height: 16),

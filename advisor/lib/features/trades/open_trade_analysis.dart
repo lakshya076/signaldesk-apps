@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:signaldesk_advisor/models/trade_card_model.dart';
 import 'package:signaldesk_advisor/services/api_service.dart';
 import 'package:signaldesk_advisor/view_models/active_trade_card_view_model.dart';
@@ -333,6 +334,10 @@ class _OpenTradeAnalysisState extends State<OpenTradeAnalysis> {
     final statusColor =
         trade.isProfit ? theme.colorScheme.secondary : theme.colorScheme.error;
 
+    final DateTime istEntryTime = trade.createdAt.add(
+      const Duration(hours: 5, minutes: 30),
+    );
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -346,8 +351,11 @@ class _OpenTradeAnalysisState extends State<OpenTradeAnalysis> {
               ),
             ),
             const Divider(height: 24),
-            _buildDetailRow(context, 'Entry Date', '15 Aug 2:03pm'),
-            // Placeholder
+            _buildDetailRow(
+              context,
+              'Entry Date & Time',
+              DateFormat('d MMM h:mma').format(istEntryTime),
+            ),
             _buildDetailRow(
               context,
               'Live Status',
@@ -356,17 +364,9 @@ class _OpenTradeAnalysisState extends State<OpenTradeAnalysis> {
             ),
             _buildDetailRow(context, 'Stop Loss', trade.stopLoss),
             _buildDetailRow(context, 'Target', trade.targetPrice),
-            _buildDetailRow(
-              context,
-              'Trade Direction',
-              trade.trade.tradeDirection,
-            ),
-            _buildDetailRow(
-              context,
-              'Trade Category',
-              trade.trade.tradeCategory,
-            ),
-            _buildDetailRow(context, 'Trade Segment', trade.trade.tradeSegment),
+            _buildDetailRow(context, 'Trade Direction', trade.tradeDirection),
+            _buildDetailRow(context, 'Trade Category', trade.tradeCategory),
+            _buildDetailRow(context, 'Trade Segment', trade.tradeSegment),
           ],
         ),
       ),

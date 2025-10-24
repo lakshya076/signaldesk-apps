@@ -8,6 +8,7 @@ import 'package:signaldesk_advisor/view_models/closed_trade_card_view_model.dart
 import 'package:signaldesk_advisor/widgets/active_trade_card.dart';
 import 'package:signaldesk_advisor/widgets/closed_trade_card.dart';
 import 'package:signaldesk_advisor/widgets/stat_card.dart';
+import 'package:signaldesk_advisor/widgets/trade_card_header.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AdvisorHomeScreen extends StatefulWidget {
@@ -463,8 +464,18 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
             }
 
             return Padding(
-              padding: EdgeInsets.only(top: index == 0 ? 8.0 : 16.0),
-              child: tradeCard,
+              padding: const EdgeInsets.only(top: 16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TradeCardHeader(
+                    category: trade.tradeCategory,
+                    segment: trade.tradeSegment,
+                  ),
+                  const SizedBox(height: 8),
+                  tradeCard,
+                ],
+              ),
             );
           }).toList(),
     );

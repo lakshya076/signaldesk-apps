@@ -5,6 +5,7 @@ import 'package:signaldesk_advisor/services/api_service.dart';
 import 'package:signaldesk_advisor/view_models/active_trade_card_view_model.dart';
 import 'package:signaldesk_advisor/widgets/active_trade_card.dart';
 import 'package:signaldesk_advisor/widgets/filter_chip_row.dart';
+import 'package:signaldesk_advisor/widgets/trade_card_header.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AllActiveTradesScreen extends StatefulWidget {
@@ -287,11 +288,20 @@ class _AllActiveTradesScreenState extends State<AllActiveTradesScreen> {
                         final viewModel = _filteredTradeCards[index];
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 16.0),
-                          // ✅ UPDATED: Pass both handlers to the widget
-                          child: ActiveTradeCardWidget(
-                            trade: viewModel,
-                            onManualClose: _handleManualClose,
-                            onModifyTrade: _handleModifyTrade,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              TradeCardHeader(
+                                segment: viewModel.tradeSegment,
+                                category: viewModel.tradeCategory,
+                              ),
+                              const SizedBox(height: 4),
+                              ActiveTradeCardWidget(
+                                trade: viewModel,
+                                onManualClose: _handleManualClose,
+                                onModifyTrade: _handleModifyTrade,
+                              ),
+                            ],
                           ),
                         );
                       },

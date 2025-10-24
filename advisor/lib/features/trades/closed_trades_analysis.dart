@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:signaldesk_advisor/view_models/closed_trade_card_view_model.dart';
 
 class ClosedTradesAnalysis extends StatelessWidget {
@@ -201,6 +202,14 @@ class ClosedTradesAnalysis extends StatelessWidget {
       return theme.hintColor;
     }
 
+    final DateTime istEntryTime = trade.createdAt.add(
+      const Duration(hours: 5, minutes: 30),
+    );
+
+    final DateTime istExitTime = trade.closedAt!.add(
+      const Duration(hours: 5, minutes: 30),
+    );
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -214,8 +223,16 @@ class ClosedTradesAnalysis extends StatelessWidget {
               ),
             ),
             const Divider(height: 24),
-            _buildDetailRow(context, 'Entry', '15 Aug 2:03pm'),
-            _buildDetailRow(context, 'Exit', '15 Aug 4:03pm'),
+            _buildDetailRow(
+              context,
+              'Entry Date & Time',
+              DateFormat('d MMM h:mma').format(istEntryTime),
+            ),
+            _buildDetailRow(
+              context,
+              'Exit Date & Time',
+              DateFormat('d MMM h:mma').format(istExitTime),
+            ),
             _buildDetailRow(
               context,
               'Status',
@@ -250,8 +267,7 @@ class ClosedTradesAnalysis extends StatelessWidget {
     );
   }
 
-  Widget _buildInfoColumn(
-      BuildContext context,
+  Widget _buildInfoColumn(BuildContext context,
       String label,
       String value, {
         TextStyle? valueStyle,
@@ -307,8 +323,7 @@ class ClosedTradesAnalysis extends StatelessWidget {
     );
   }
 
-  Widget _buildDetailRow(
-      BuildContext context,
+  Widget _buildDetailRow(BuildContext context,
       String label,
       String value, {
         Color? valueColor,
