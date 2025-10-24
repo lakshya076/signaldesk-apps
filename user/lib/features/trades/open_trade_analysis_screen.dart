@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:signaldesk_user/models/trade_card_model.dart';
 import 'package:signaldesk_user/services/api_service.dart';
@@ -322,6 +323,11 @@ class _OpenTradeAnalysisState extends State<OpenTradeAnalysis> {
     final theme = Theme.of(context);
     final statusColor =
         trade.isProfit ? theme.colorScheme.secondary : theme.colorScheme.error;
+
+    final DateTime istEntryTime = trade.createdAt.add(
+      const Duration(hours: 5, minutes: 30),
+    );
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -335,7 +341,12 @@ class _OpenTradeAnalysisState extends State<OpenTradeAnalysis> {
               ),
             ),
             const Divider(height: 24),
-            _buildDetailRow(context, 'Entry Date', '15 Aug 2:03pm'),
+            _buildDetailRow(context, 'By:', trade.advisorName),
+            _buildDetailRow(
+              context,
+              'Entry Date & Time',
+              DateFormat('d MMM h:mma').format(istEntryTime),
+            ),
             _buildDetailRow(
               context,
               'Live Status',

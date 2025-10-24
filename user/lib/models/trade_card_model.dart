@@ -11,6 +11,8 @@ class TradeCardModel {
   final String tradeCategory;
   final String tradeSegment;
   final String advisorName;
+  final DateTime createdAt;
+  final DateTime? closedAt;
 
   TradeCardModel({
     required this.id,
@@ -25,6 +27,8 @@ class TradeCardModel {
     required this.tradeCategory,
     required this.tradeSegment,
     required this.advisorName,
+    required this.createdAt,
+    this.closedAt,
   });
 
   factory TradeCardModel.fromJson(Map<String, dynamic> json) {
@@ -48,6 +52,11 @@ class TradeCardModel {
       tradeCategory: json['trade_category'] ?? 'N/A',
       tradeSegment: json['trade_segment'] ?? 'N/A',
       advisorName: name,
+      createdAt: DateTime.parse(
+        json['created_at'] ?? DateTime.now().toIso8601String(),
+      ),
+      closedAt:
+          json['closed_at'] == null ? null : DateTime.parse(json['closed_at']),
     );
   }
 }

@@ -11,6 +11,14 @@ class ClosedTradeCardViewModel {
 
   String get advisorName => trade.advisorName;
 
+  String get tradeCategory => trade.tradeCategory;
+
+  String get tradeSegment => trade.tradeSegment;
+
+  DateTime get createdAt => trade.createdAt;
+
+  DateTime? get closedAt => trade.closedAt;
+
   double get exitPrice {
     if (trade.status == 'closed_profit') return trade.target;
     if (trade.status == 'closed_loss') return trade.stopLoss;

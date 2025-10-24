@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:signaldesk_user/core/advisor_filter_provider.dart';
+import 'package:signaldesk_user/widgets/trade_card_header.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:signaldesk_user/models/trade_card_model.dart';
 import 'package:signaldesk_user/view_models/closed_trade_card_view_model.dart';
@@ -188,7 +189,18 @@ class _UserClosedTradesScreenState extends State<UserClosedTradesScreen> {
                       final viewModel = _filteredTradeCards[index];
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 16.0),
-                        child: ClosedTradeCardWidget(trade: viewModel),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            TradeCardHeader(
+                              advisorName: viewModel.advisorName,
+                              segment: viewModel.tradeSegment,
+                              category: viewModel.tradeCategory,
+                            ),
+                            const SizedBox(height: 4),
+                            ClosedTradeCardWidget(trade: viewModel),
+                          ],
+                        ),
                       );
                     },
                   ),

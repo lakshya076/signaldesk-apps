@@ -12,6 +12,12 @@ class ActiveTradeCardViewModel {
 
   String get advisorName => trade.advisorName;
 
+  String get tradeCategory => trade.tradeCategory;
+
+  String get tradeSegment => trade.tradeSegment;
+
+  DateTime get createdAt => trade.createdAt;
+
   String get entryPrice => '₹${trade.entryPrice.toStringAsFixed(2)}';
 
   String get stopLoss => '₹${trade.stopLoss.toStringAsFixed(2)}';
