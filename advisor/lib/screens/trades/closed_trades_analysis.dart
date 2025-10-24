@@ -191,7 +191,7 @@ class ClosedTradesAnalysis extends StatelessWidget {
                   _buildLabelValueRow(
                     context,
                     'Trade Duration',
-                    tradeDuration, // ✅ UPDATED: Used dynamic value
+                    tradeDuration,
                   ),
                   const SizedBox(height: 12),
                   _buildLabelValueRow(
