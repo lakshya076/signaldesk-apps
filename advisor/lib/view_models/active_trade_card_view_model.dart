@@ -57,8 +57,14 @@ class ActiveTradeCardViewModel {
   }
 
   String get estimatedGain {
-    final gain = ((trade.target - trade.entryPrice) / trade.entryPrice) * 100;
-    return '${gain.toStringAsFixed(2)}%';
+    if (trade.entryPrice == 0) return '0.00%';
+    final gainPercent;
+    if (tradeDirection == 'Buy') {
+      gainPercent = ((trade.target - trade.entryPrice) / trade.entryPrice) * 100;
+    } else {
+      gainPercent = ((trade.entryPrice - trade.target) / trade.entryPrice) * 100;
+    }
+    return '${gainPercent.toStringAsFixed(2)}%';
   }
 
   double get liveReturnValue {
