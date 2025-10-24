@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:signaldesk_user/core/theme_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:signaldesk_user/features/user_home_screen.dart';
-import 'package:signaldesk_user/features/trades/user_active_trades_screen.dart';
-import 'package:signaldesk_user/features/trades/user_closed_trades_screen.dart';
-import 'package:signaldesk_user/features/advisors/advisors_screen.dart';
-import 'package:signaldesk_user/features/profile/profile_screen.dart';
+import 'package:signaldesk_user/screens/user_home_screen.dart';
+import 'package:signaldesk_user/screens/trades/user_active_trades_screen.dart';
+import 'package:signaldesk_user/screens/trades/user_closed_trades_screen.dart';
+import 'package:signaldesk_user/screens/advisors/advisors_screen.dart';
+import 'package:signaldesk_user/screens/profile/profile_screen.dart';
 
 class UserMainScreen extends StatefulWidget {
   const UserMainScreen({super.key});

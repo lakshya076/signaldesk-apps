@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:signaldesk_user/core/advisor_filter_provider.dart';
 import 'package:signaldesk_user/core/theme.dart';
 import 'package:signaldesk_user/core/theme_provider.dart';
-import 'package:signaldesk_user/features/auth/auth_gate.dart';
+import 'package:signaldesk_user/screens/auth/auth_gate.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // --- App Initialization ---

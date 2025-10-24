@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:signaldesk_user/features/trades/open_trade_analysis_screen.dart';
+import 'package:signaldesk_user/screens/trades/open_trade_analysis_screen.dart';
 import 'package:signaldesk_user/view_models/active_trade_card_view_model.dart';
 
 import 'live_trade_indicator.dart';

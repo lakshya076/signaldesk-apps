@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:signaldesk_user/features/auth/login_screen.dart';
-import 'package:signaldesk_user/features/user_main_screen.dart';
-import 'package:signaldesk_user/features/auth/access_denied_screen.dart';
+import 'package:signaldesk_user/screens/auth/login_screen.dart';
+import 'package:signaldesk_user/screens/user_main_screen.dart';
+import 'package:signaldesk_user/screens/auth/access_denied_screen.dart';
 
 class AuthGate extends StatefulWidget {
   const AuthGate({Key? key}) : super(key: key);

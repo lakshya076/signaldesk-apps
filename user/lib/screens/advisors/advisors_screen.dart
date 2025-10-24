@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:signaldesk_user/models/advisor_profile.dart';
-import 'package:signaldesk_user/features/advisors/search_advisors_screen.dart';
+import 'package:signaldesk_user/screens/advisors/search_advisors_screen.dart';
 import 'package:signaldesk_user/widgets/advisor_list.dart';
 
 class AdvisorsScreen extends StatefulWidget {
