@@ -22,6 +22,12 @@ class ActiveTradeCardWidget extends StatelessWidget {
     }
     final currentStatusColor =
         trade.isProfit ? theme.colorScheme.secondary : theme.colorScheme.error;
+
+    final priceChangeColor = trade.priceChangeValue >= 0
+        ? theme.colorScheme.secondary
+        : theme.colorScheme.error;
+
+
     return InkWell(
       onTap:
           () => Navigator.of(context).push(
@@ -89,7 +95,7 @@ class ActiveTradeCardWidget extends StatelessWidget {
                     Text(
                       trade.priceChange,
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: currentStatusColor,
+                        color: priceChangeColor,
                       ),
                     ),
                   ],
