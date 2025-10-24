@@ -30,6 +30,59 @@ class AdvisorMainScreenState extends State<AdvisorMainScreen> {
   final GlobalKey<WatchlistScreenState> _watchlistKey =
       GlobalKey<WatchlistScreenState>();
 
+  @override
+  void initState() {
+    super.initState();
+    // Call the new subscription method after the frame is built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _subscribeToAllInstruments();
+    });
+  }
+
+  Future<void> _subscribeToAllInstruments() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    final advisorId = user.id;
+    final Set<String> symbolsToSubscribe = {};
+
+    try {
+      // Fetch active trade symbols
+      final activeTradesResponse = await Supabase.instance.client
+          .from('trade_cards')
+          .select('stock_symbol')
+          .eq('advisor_id', advisorId)
+          .eq('status', 'open');
+
+      for (var trade in activeTradesResponse) {
+        if (trade['stock_symbol'] != null) {
+          symbolsToSubscribe.add(trade['stock_symbol']);
+        }
+      }
+
+      // Fetch watchlist symbols
+      final watchlistResponse = await Supabase.instance.client
+          .from('watchlists')
+          .select('stock_symbol')
+          .eq('advisor_id', advisorId);
+
+      for (var item in watchlistResponse) {
+        if (item['stock_symbol'] != null) {
+          symbolsToSubscribe.add(item['stock_symbol']);
+        }
+      }
+
+      if (symbolsToSubscribe.isNotEmpty) {
+        debugPrint('Attempting to bulk subscribe to: ${symbolsToSubscribe.toList()}');
+        await _apiService.bulkSubscribeInstruments(symbolsToSubscribe.toList());
+      }
+
+    } catch (e) {
+      debugPrint("Error fetching symbols for bulk subscription: $e");
+      // Optionally show a snackbar error
+    }
+  }
+
   void onItemTapped(int index) {
     if (index == 4) {
       // User tapped "Create", run our check
@@ -171,11 +224,9 @@ class AdvisorMainScreenState extends State<AdvisorMainScreen> {
                     _refreshWatchlist();
                   }
                 },
-                // The backgroundColor property has been removed.
-                // The button will now use the color from the active theme.
                 child: const Icon(Icons.add),
               )
-              : null, // Do not show on other screens
+              : null,
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         items: const <BottomNavigationBarItem>[

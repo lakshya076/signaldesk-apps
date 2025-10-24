@@ -68,12 +68,31 @@ class ApiService {
       );
 
       if (response.statusCode == 200) {
-        debugPrint('✓ Subscribed to $symbol for live data');
+        debugPrint('Subscribed to $symbol for live data');
       } else {
-        debugPrint('⚠ Failed to subscribe to $symbol: ${response.body}');
+        debugPrint('Failed to subscribe to $symbol: ${response.body}');
       }
     } catch (e) {
-      debugPrint('✗ Error subscribing to $symbol: $e');
+      debugPrint('Error subscribing to $symbol: $e');
+    }
+  }
+
+  Future<void> bulkSubscribeInstruments(List<String> symbols) async {
+    if (symbols.isEmpty) return;
+    try {
+      final response = await http.post(
+        Uri.parse('$_apiBaseUrl/bulk-subscribe'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'symbols': symbols, 'action': 'add'}),
+      );
+
+      if (response.statusCode == 200) {
+        debugPrint('Bulk subscribed to ${symbols.length} instruments');
+      } else {
+        debugPrint('Failed to bulk subscribe: ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('Error during bulk subscription: $e');
     }
   }
 
