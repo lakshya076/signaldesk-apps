@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
 class TradeCardHeader extends StatelessWidget {
+  final String direction;
   final String segment;
   final String category;
 
   const TradeCardHeader({
     super.key,
+    required this.direction,
     required this.segment,
     required this.category,
   });
@@ -24,6 +26,8 @@ class TradeCardHeader extends StatelessWidget {
           ),
           Row(
             children: [
+              _buildTag(context, direction, theme.colorScheme.error),
+              const SizedBox(width:6),
               _buildTag(context, segment, theme.colorScheme.primary),
               const SizedBox(width: 6),
               _buildTag(context, category, theme.colorScheme.tertiary),
@@ -34,7 +38,6 @@ class TradeCardHeader extends StatelessWidget {
     );
   }
 
-  // Helper widget to build the small tags
   Widget _buildTag(BuildContext context, String text, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
