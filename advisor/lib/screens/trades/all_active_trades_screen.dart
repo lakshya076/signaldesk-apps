@@ -84,7 +84,6 @@ class _AllActiveTradesScreenState extends State<AllActiveTradesScreen> {
           _isLoading = false;
         });
 
-        // NEW: Subscribe to all active trade symbols
         for (var card in cards) {
           _apiService.subscribeToInstrument(card.stockSymbol);
         }
@@ -105,7 +104,7 @@ class _AllActiveTradesScreenState extends State<AllActiveTradesScreen> {
   void _startPriceTimer() {
     _timer?.cancel();
     _timer = Timer.periodic(
-      const Duration(seconds: 5),
+      const Duration(seconds: 2),
       (timer) => _updateLivePrices(),
     );
     _updateLivePrices();
@@ -166,7 +165,7 @@ class _AllActiveTradesScreenState extends State<AllActiveTradesScreen> {
     await _fetchTradeCards();
   }
 
-  // This is the handler function from the previous step (unchanged)
+  // This is the handler function from the previous step
   Future<void> _handleManualClose(
     String tradeId,
     String newStatus,
@@ -186,6 +185,7 @@ class _AllActiveTradesScreenState extends State<AllActiveTradesScreen> {
             'status': newStatus,
             'closed_at': 'now()',
             'last_price': closingPrice,
+            'manual_exit_price' : closingPrice
           })
           .eq('id', tradeId);
 
@@ -213,7 +213,6 @@ class _AllActiveTradesScreenState extends State<AllActiveTradesScreen> {
     }
   }
 
-  // ✅ ADDED: The handler function to update SL/TGT in Supabase
   Future<void> _handleModifyTrade(
     String tradeId,
     double newStopLoss,
@@ -292,6 +291,7 @@ class _AllActiveTradesScreenState extends State<AllActiveTradesScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               TradeCardHeader(
+                                direction: viewModel.tradeDirection,
                                 segment: viewModel.tradeSegment,
                                 category: viewModel.tradeCategory,
                               ),

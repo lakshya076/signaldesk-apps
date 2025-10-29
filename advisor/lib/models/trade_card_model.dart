@@ -5,11 +5,12 @@ class TradeCardModel {
   final double entryPrice;
   final double stopLoss;
   final double target;
-  final String status;
-  final String tradeDirection;
   final double lastPrice;
+  final double? manualExitPrice;
+  final String status;
   final String tradeCategory;
   final String tradeSegment;
+  final String tradeDirection;
   final DateTime createdAt;
   final DateTime? closedAt;
 
@@ -20,11 +21,12 @@ class TradeCardModel {
     required this.entryPrice,
     required this.stopLoss,
     required this.target,
-    required this.status,
-    required this.tradeDirection,
     required this.lastPrice,
+    this.manualExitPrice,
+    required this.status,
     required this.tradeCategory,
     required this.tradeSegment,
+    required this.tradeDirection,
     required this.createdAt,
     this.closedAt,
   });
@@ -47,6 +49,7 @@ class TradeCardModel {
       ),
       closedAt:
           json['closed_at'] == null ? null : DateTime.parse(json['closed_at']),
+      manualExitPrice: (json['manual_exit_price'] as num?)?.toDouble(),
     );
   }
 }

@@ -26,7 +26,6 @@ class AdvisorHomeScreen extends StatefulWidget {
 }
 
 class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
-  // NEW: State variable for advisor statistics
   AdvisorStats? _advisorStats;
   List<TradeCardModel> _activeTrades = [];
   List<TradeCardModel> _closedTrades = [];
@@ -52,12 +51,11 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
     }
 
     _advisorId = currentUser.id;
-    // UPDATED: Fetch all data in parallel for faster loading
     await _fetchAdvisorData();
     _setupRealtimeSubscription();
   }
 
-  // NEW: Function to fetch both stats and trades
+  // Function to fetch both stats and trades
   Future<void> _fetchAdvisorData() async {
     if (_advisorId == null) return;
 
@@ -75,7 +73,7 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
             .from('advisor_statistics')
             .select()
             .eq('advisor_id', _advisorId!)
-            .maybeSingle(), // Use maybeSingle to safely handle no-stats case
+            .maybeSingle(),
         Supabase.instance.client
             .from('trade_cards')
             .select()
@@ -132,7 +130,6 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
                 callback: (payload) {
                   debugPrint('Realtime change received: ${payload.toString()}');
                   if (mounted) {
-                    // Just refetch everything to keep it simple and consistent
                     _fetchAdvisorData();
                   }
                 },
@@ -180,7 +177,7 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
 
     if (_activeTrades.isNotEmpty) {
       _priceTimer = Timer.periodic(
-        const Duration(seconds: 5),
+        const Duration(seconds: 2),
         (timer) => _updateLivePrices(),
       );
       _updateLivePrices();
@@ -214,7 +211,6 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
     await _fetchAdvisorData();
   }
 
-  // This is the handler function from the previous step (unchanged)
   Future<void> _handleManualClose(
     String tradeId,
     String newStatus,
@@ -234,6 +230,7 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
             'status': newStatus,
             'closed_at': 'now()',
             'last_price': closingPrice,
+            'manual_exit_price': closingPrice,
           })
           .eq('id', tradeId);
 
@@ -247,7 +244,6 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
         ),
       );
 
-      // Refresh all data on the home screen
       _fetchAdvisorData();
     } catch (e) {
       if (!mounted) return;
@@ -268,7 +264,6 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
     double newTarget,
   ) async {
     try {
-      // Show a loading indicator
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -469,6 +464,7 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   TradeCardHeader(
+                    direction: trade.tradeDirection,
                     category: trade.tradeCategory,
                     segment: trade.tradeSegment,
                   ),

@@ -36,20 +36,20 @@ class _AllClosedTradesScreenState extends State<AllClosedTradesScreen> {
 
     _tradesChannel!
         .onPostgresChanges(
-      event: PostgresChangeEvent.all,
-      schema: 'public',
-      table: 'trade_cards',
-      filter: PostgresChangeFilter(
-        type: PostgresChangeFilterType.eq,
-        column: 'advisor_id',
-        value: advisorId,
-      ),
-      callback: (payload) {
-        if (mounted) {
-          _fetchTradeCards();
-        }
-      },
-    )
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'trade_cards',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'advisor_id',
+            value: advisorId,
+          ),
+          callback: (payload) {
+            if (mounted) {
+              _fetchTradeCards();
+            }
+          },
+        )
         .subscribe();
   }
 
@@ -70,7 +70,7 @@ class _AllClosedTradesScreenState extends State<AllClosedTradesScreen> {
           .order('created_at', ascending: false);
 
       final cards =
-      (response as List).map((e) => TradeCardModel.fromJson(e)).toList();
+          (response as List).map((e) => TradeCardModel.fromJson(e)).toList();
       if (mounted) {
         setState(() {
           _tradeCards = cards;
@@ -97,9 +97,9 @@ class _AllClosedTradesScreenState extends State<AllClosedTradesScreen> {
 
   void _filterAndRefresh() {
     final allViewModels =
-    _tradeCards
-        .map((trade) => ClosedTradeCardViewModel(trade: trade))
-        .toList();
+        _tradeCards
+            .map((trade) => ClosedTradeCardViewModel(trade: trade))
+            .toList();
 
     if (_selectedFilter == 'All') {
       _filteredTradeCards = allViewModels;
@@ -134,37 +134,38 @@ class _AllClosedTradesScreenState extends State<AllClosedTradesScreen> {
         ),
         Expanded(
           child:
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : _filteredTradeCards.isEmpty
-              ? Center(
-            child: Text(
-              _tradeCards.isEmpty
-                  ? 'You have no closed trades.'
-                  : 'No trades match the filter.',
-            ),
-          )
-              : ListView.builder(
-            padding: const EdgeInsets.all(8.0),
-            itemCount: _filteredTradeCards.length,
-            itemBuilder: (context, index) {
-              final viewModel = _filteredTradeCards[index];
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TradeCardHeader(
-                      segment: viewModel.tradeSegment,
-                      category: viewModel.tradeCategory,
+              _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _filteredTradeCards.isEmpty
+                  ? Center(
+                    child: Text(
+                      _tradeCards.isEmpty
+                          ? 'You have no closed trades.'
+                          : 'No trades match the filter.',
                     ),
-                    const SizedBox(height: 4),
-                    ClosedTradeCardWidget(trade: viewModel),
-                  ],
-                ),
-              );
-            },
-          ),
+                  )
+                  : ListView.builder(
+                    padding: const EdgeInsets.all(8.0),
+                    itemCount: _filteredTradeCards.length,
+                    itemBuilder: (context, index) {
+                      final viewModel = _filteredTradeCards[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            TradeCardHeader(
+                              direction: viewModel.tradeDirection,
+                              segment: viewModel.tradeSegment,
+                              category: viewModel.tradeCategory,
+                            ),
+                            const SizedBox(height: 4),
+                            ClosedTradeCardWidget(trade: viewModel),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
         ),
       ],
     );

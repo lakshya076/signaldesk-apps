@@ -20,6 +20,8 @@ class ActiveTradeCardViewModel {
 
   String get entryPrice => '₹${trade.entryPrice.toStringAsFixed(2)}';
 
+  String get lastPrice => '₹${trade.lastPrice.toStringAsFixed(2)}';
+
   String get stopLoss => '₹${trade.stopLoss.toStringAsFixed(2)}';
 
   String get targetPrice => '₹${trade.target.toStringAsFixed(2)}';
@@ -41,9 +43,9 @@ class ActiveTradeCardViewModel {
 
   double get progress {
     if (trade.status != 'open') return isProfit ? 1.0 : 0.0;
-    final range = trade.target - trade.stopLoss;
-    if (range <= 0) return 0.5;
-    final value = (currentPrice - trade.stopLoss) / range;
+    final range = (trade.target - trade.stopLoss).abs();
+    if (range <= 0) return 0.5; // Failsafe
+    final value = (currentPrice - trade.stopLoss).abs() / range;
     return value.clamp(0.0, 1.0);
   }
 
@@ -58,14 +60,33 @@ class ActiveTradeCardViewModel {
 
   String get estimatedGain {
     if (trade.entryPrice == 0) return '0.00%';
-    final gainPercent;
+    final double gainPercent;
     if (tradeDirection == 'Buy') {
-      gainPercent = ((trade.target - trade.entryPrice) / trade.entryPrice) * 100;
+      gainPercent =
+          ((trade.target - trade.entryPrice) / trade.entryPrice) * 100;
     } else {
-      gainPercent = ((trade.entryPrice - trade.target) / trade.entryPrice) * 100;
+      gainPercent =
+          ((trade.entryPrice - trade.target) / trade.entryPrice) * 100;
     }
-    return '${gainPercent.toStringAsFixed(2)}%';
+    return '+${gainPercent.toStringAsFixed(2)}%';
   }
+
+  String get estimatedRisk {
+    if (trade.entryPrice == 0) return '0.00%';
+
+    final double riskPercent;
+    if (tradeDirection == 'Buy') {
+      riskPercent =
+          ((trade.entryPrice - trade.stopLoss) / trade.entryPrice) * 100;
+    } else {
+      riskPercent =
+          ((trade.stopLoss - trade.entryPrice) / trade.entryPrice) * 100;
+    }
+    return '-${riskPercent.toStringAsFixed(2)}%';
+  }
+
+  String get riskReward =>
+      '${((trade.entryPrice - trade.stopLoss) / (trade.target - trade.entryPrice)).abs().toStringAsFixed(2)}x';
 
   double get liveReturnValue {
     if (trade.entryPrice == 0) return 0.0;

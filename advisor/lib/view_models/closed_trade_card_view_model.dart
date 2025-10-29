@@ -19,15 +19,23 @@ class ClosedTradeCardViewModel {
 
   DateTime? get closedAt => trade.closedAt;
 
-  double get exitPrice {
+  double get exitPriceRaw {
+    if (trade.manualExitPrice != null && trade.manualExitPrice! > 0) {
+      return trade.manualExitPrice!;
+    }
+
     if (trade.status == 'closed_profit') return trade.target;
     if (trade.status == 'closed_loss') return trade.stopLoss;
     return trade.entryPrice;
   }
 
-  String get entryPriceFormatted => '₹${trade.entryPrice.toStringAsFixed(2)}';
+  String get entryPrice => '₹${trade.entryPrice.toStringAsFixed(2)}';
 
-  String get exitPriceFormatted => '₹${exitPrice.toStringAsFixed(2)}';
+  String get exitPrice => '₹${exitPriceRaw.toStringAsFixed(2)}';
+
+  String get stopLoss => '₹${trade.stopLoss.toStringAsFixed(2)}';
+
+  String get targetPrice => '₹${trade.target.toStringAsFixed(2)}';
 
   bool get wasProfitable => trade.status == 'closed_profit';
 
@@ -39,10 +47,8 @@ class ClosedTradeCardViewModel {
     return 'Trade Status: At Cost';
   }
 
-  // REMOVED: The statusColor getter is gone. The widget will handle this now.
-
   double get gainLossValue {
-    final gain = exitPrice - trade.entryPrice;
+    final gain = exitPriceRaw - trade.entryPrice;
     return trade.tradeDirection == 'Sell' ? -gain : gain;
   }
 
@@ -52,11 +58,6 @@ class ClosedTradeCardViewModel {
     return '${percent >= 0 ? '+' : ''}${percent.toStringAsFixed(2)}%';
   }
 
-  String get riskReward {
-    final potentialGain = (trade.target - trade.entryPrice).abs();
-    final potentialLoss = (trade.entryPrice - trade.stopLoss).abs();
-    if (potentialLoss == 0) return 'N/A';
-    final rr = potentialGain / potentialLoss;
-    return '${rr.toStringAsFixed(2)}x';
-  }
+  String get riskReward =>
+      '${((trade.entryPrice - trade.stopLoss) / (trade.target - trade.entryPrice)).abs().toStringAsFixed(2)}x';
 }

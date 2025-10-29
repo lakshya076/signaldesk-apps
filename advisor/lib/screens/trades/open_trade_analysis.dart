@@ -113,13 +113,11 @@ class _OpenTradeAnalysisState extends State<OpenTradeAnalysis> {
 
   @override
   Widget build(BuildContext context) {
-    // IMPORTANT: Create the ViewModel inside the build method using the latest state
     final viewModel = ActiveTradeCardViewModel(
       trade: _tradeData,
       currentPrice: _livePrice,
     );
 
-    // If the status is no longer 'open', you might want to show a message
     if (_tradeData.status != 'open') {
       return Scaffold(
         appBar: AppBar(title: const Text('Trade Analysis')),
@@ -164,8 +162,6 @@ class _OpenTradeAnalysisState extends State<OpenTradeAnalysis> {
       ),
     );
   }
-
-  // --- Helper methods now take the ViewModel ---
 
   Widget _buildHeader(BuildContext context, ActiveTradeCardViewModel trade) {
     final theme = Theme.of(context);
@@ -216,7 +212,7 @@ class _OpenTradeAnalysisState extends State<OpenTradeAnalysis> {
               ),
             ),
             Text(
-              'Last Close: ₹${trade.trade.lastPrice.toStringAsFixed(2)}',
+              'Last Close: ${trade.lastPrice}',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.hintColor,
               ),
@@ -236,7 +232,7 @@ class _OpenTradeAnalysisState extends State<OpenTradeAnalysis> {
       target: trade.trade.target,
       entryPrice: trade.trade.entryPrice,
       currentPrice: trade.currentPrice,
-      tradeDirection: trade.trade.tradeDirection, // Add this line
+      tradeDirection: trade.tradeDirection,
     );
   }
 
@@ -308,14 +304,14 @@ class _OpenTradeAnalysisState extends State<OpenTradeAnalysis> {
                 _buildStatItem(
                   context,
                   'Estimated Risk',
-                  '-${((trade.trade.entryPrice - trade.trade.stopLoss) / trade.trade.entryPrice * 100).toStringAsFixed(2)}%',
+                  trade.estimatedRisk,
                   theme.colorScheme.error,
                 ),
                 const SizedBox(height: 16),
                 _buildStatItem(
                   context,
                   'Risk/Reward',
-                  '${((trade.trade.target - trade.trade.entryPrice) / (trade.trade.entryPrice - trade.trade.stopLoss)).abs().toStringAsFixed(2)}x',
+                  trade.riskReward,
                   theme.colorScheme.secondary,
                 ),
               ],

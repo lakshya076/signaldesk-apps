@@ -40,7 +40,6 @@ class ClosedTradeCardWidget extends StatelessWidget {
         decoration: BoxDecoration(
           color: theme.cardTheme.color,
           borderRadius: BorderRadius.circular(16),
-          // UPDATED: Border now uses the dynamic outline color
           border: Border.all(color: outlineColor, width: 1.5),
         ),
         child: Column(
@@ -132,9 +131,9 @@ class ClosedTradeCardWidget extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _buildLevel('Entry', trade.entryPriceFormatted, context),
+                  _buildLevel('Entry', trade.entryPrice, context),
                   Container(width: 1, height: 30, color: theme.dividerColor),
-                  _buildLevel('Exit', trade.exitPriceFormatted, context),
+                  _buildLevel('Exit', trade.exitPrice, context),
                 ],
               ),
             ),
