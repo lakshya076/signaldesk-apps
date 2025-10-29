@@ -213,7 +213,7 @@ class _UserActiveTradesScreenState extends State<UserActiveTradesScreen> {
   void _startPriceTimer() {
     _timer?.cancel();
     _timer = Timer.periodic(
-      const Duration(seconds: 5),
+      const Duration(seconds: 2),
       (timer) => _updateLivePrices(),
     );
     _updateLivePrices();
@@ -304,6 +304,7 @@ class _UserActiveTradesScreenState extends State<UserActiveTradesScreen> {
                           children: [
                             TradeCardHeader(
                               advisorName: viewModel.advisorName,
+                              direction: viewModel.tradeDirection,
                               segment: viewModel.tradeSegment,
                               category: viewModel.tradeCategory,
                             ),

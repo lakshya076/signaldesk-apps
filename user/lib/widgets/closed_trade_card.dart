@@ -128,9 +128,9 @@ class ClosedTradeCardWidget extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _buildLevel('Entry', trade.entryPriceFormatted, context),
+                  _buildLevel('Entry', trade.entryPrice, context),
                   Container(width: 1, height: 30, color: theme.dividerColor),
-                  _buildLevel('Exit', trade.exitPriceFormatted, context),
+                  _buildLevel('Exit', trade.exitPrice, context),
                 ],
               ),
             ),

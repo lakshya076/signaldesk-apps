@@ -224,7 +224,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
   void _startPriceTimer() {
     _timer?.cancel();
     if (_activeTrades.isNotEmpty && mounted) {
-      _timer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      _timer = Timer.periodic(const Duration(seconds: 2), (timer) {
         if (mounted && _activeTrades.isNotEmpty) {
           _updateLivePrices();
         } else {
@@ -315,6 +315,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                   children: [
                     TradeCardHeader(
                       advisorName: viewModel.advisorName,
+                      direction: viewModel.tradeDirection,
                       segment: viewModel.tradeSegment,
                       category: viewModel.tradeCategory,
                     ),
@@ -332,6 +333,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                   children: [
                     TradeCardHeader(
                       advisorName: viewModel.advisorName,
+                      direction: viewModel.tradeDirection,
                       segment: viewModel.tradeSegment,
                       category: viewModel.tradeCategory,
                     ),

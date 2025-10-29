@@ -109,11 +109,11 @@ class _OpenTradeAnalysisState extends State<OpenTradeAnalysis> {
 
   @override
   Widget build(BuildContext context) {
-    // The viewModel is now correctly initialized with direction-aware logic
     final viewModel = ActiveTradeCardViewModel(
       trade: _tradeData,
       currentPrice: _livePrice,
     );
+
     if (_tradeData.status != 'open') {
       return Scaffold(
         appBar: AppBar(title: const Text('Trade Analysis')),
@@ -139,6 +139,7 @@ class _OpenTradeAnalysisState extends State<OpenTradeAnalysis> {
         ),
       );
     }
+
     return Scaffold(
       appBar: AppBar(title: const Text('Trade Analysis')),
       body: ListView(
@@ -179,7 +180,6 @@ class _OpenTradeAnalysisState extends State<OpenTradeAnalysis> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // MODIFIED: Added Row to include SELL tag
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
@@ -189,28 +189,6 @@ class _OpenTradeAnalysisState extends State<OpenTradeAnalysis> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  // ADDED: "SELL" tag
-                  if (trade.isSellTrade)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 8.0),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.error,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          'SELL',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: theme.colorScheme.onError,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
                 ],
               ),
               Text(
@@ -255,7 +233,7 @@ class _OpenTradeAnalysisState extends State<OpenTradeAnalysis> {
       target: trade.trade.target,
       entryPrice: trade.trade.entryPrice,
       currentPrice: trade.currentPrice,
-      tradeDirection: trade.trade.tradeDirection, // Add this line
+      tradeDirection: trade.tradeDirection,
     );
   }
 
@@ -327,14 +305,14 @@ class _OpenTradeAnalysisState extends State<OpenTradeAnalysis> {
                 _buildStatItem(
                   context,
                   'Estimated Risk',
-                  '-${((trade.trade.entryPrice - trade.trade.stopLoss) / trade.trade.entryPrice * 100).toStringAsFixed(2)}%',
+                  trade.estimatedRisk,
                   theme.colorScheme.error,
                 ),
                 const SizedBox(height: 16),
                 _buildStatItem(
                   context,
                   'Risk/Reward',
-                  '${((trade.trade.target - trade.trade.entryPrice) / (trade.trade.entryPrice - trade.trade.stopLoss)).abs().toStringAsFixed(2)}x',
+                  trade.riskReward,
                   theme.colorScheme.secondary,
                 ),
               ],
@@ -387,14 +365,14 @@ class _OpenTradeAnalysisState extends State<OpenTradeAnalysis> {
             _buildDetailRow(
               context,
               'Trade Direction',
-              trade.trade.tradeDirection,
+              trade.tradeDirection,
             ),
             _buildDetailRow(
               context,
               'Trade Category',
-              trade.trade.tradeCategory,
+              trade.tradeCategory,
             ),
-            _buildDetailRow(context, 'Trade Segment', trade.trade.tradeSegment),
+            _buildDetailRow(context, 'Trade Segment', trade.tradeSegment),
           ],
         ),
       ),

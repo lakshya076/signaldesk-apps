@@ -12,6 +12,8 @@ class ActiveTradeCardViewModel {
 
   String get advisorName => trade.advisorName;
 
+  String get tradeDirection => trade.tradeDirection;
+
   String get tradeCategory => trade.tradeCategory;
 
   String get tradeSegment => trade.tradeSegment;
@@ -34,59 +36,69 @@ class ActiveTradeCardViewModel {
       '${priceChangeValue >= 0 ? '+' : ''}₹${priceChangeValue.toStringAsFixed(2)} (${(priceChangeValue / trade.lastPrice * 100).toStringAsFixed(2)}%)';
 
   bool get isProfit {
-    if (isSellTrade) {
-      // for Sell
+    if (tradeDirection == 'Buy') {
+      return currentPrice >= trade.entryPrice;
+    } else {
       return currentPrice <= trade.entryPrice;
     }
-    return currentPrice >= trade.entryPrice;
   }
 
   double get progress {
     if (trade.status != 'open') return isProfit ? 1.0 : 0.0;
-
-    if (isSellTrade) {
-      // For SELL, progress is from StopLoss (high) down to Target (low)
-      final range = trade.stopLoss - trade.target;
-      if (range <= 0) return 0.5; // Failsafe
-      final value = (trade.stopLoss - currentPrice) / range;
-      return value.clamp(0.0, 1.0);
-    } else {
-      // For BUY, progress is from StopLoss (low) up to Target (high)
-      final range = trade.target - trade.stopLoss;
-      if (range <= 0) return 0.5; // Failsafe
-      final value = (currentPrice - trade.stopLoss) / range;
-      return value.clamp(0.0, 1.0);
-    }
+    final range = (trade.target - trade.stopLoss).abs();
+    if (range <= 0) return 0.5; // Failsafe
+    final value = (currentPrice - trade.stopLoss).abs() / range;
+    return value.clamp(0.0, 1.0);
   }
 
   String get liveStatus {
     if (status != 'open') return status.replaceAll('_', ' ').toUpperCase();
-    if (isProfit) return 'In Profit';
+
+    final pnl = liveReturnValue;
+    if (pnl.abs() < 0.1) return 'At Cost';
+    if (pnl > 0) return 'In Profit';
     return 'In Loss';
   }
 
   String get estimatedGain {
-    double gain;
-    if (isSellTrade) {
-      // For SELL, gain is (Entry - Target) / Entry
-      gain = ((trade.entryPrice - trade.target) / trade.entryPrice) * 100;
-    } else {
-      // For BUY, gain is (Target - Entry) / Entry
-      gain = ((trade.target - trade.entryPrice) / trade.entryPrice) * 100;
-    }
-    // Handle potential division by zero if entryPrice is 0
     if (trade.entryPrice == 0) return '0.00%';
-    return '${gain.toStringAsFixed(2)}%';
+    final double gainPercent;
+    if (tradeDirection == 'Buy') {
+      gainPercent =
+          ((trade.target - trade.entryPrice) / trade.entryPrice) * 100;
+    } else {
+      gainPercent =
+          ((trade.entryPrice - trade.target) / trade.entryPrice) * 100;
+    }
+    return '+${gainPercent.toStringAsFixed(2)}%';
   }
 
+  String get estimatedRisk {
+    if (trade.entryPrice == 0) return '0.00%';
+
+    final double riskPercent;
+    if (tradeDirection == 'Buy') {
+      riskPercent =
+          ((trade.entryPrice - trade.stopLoss) / trade.entryPrice) * 100;
+    } else {
+      riskPercent =
+          ((trade.stopLoss - trade.entryPrice) / trade.entryPrice) * 100;
+    }
+    return '-${riskPercent.toStringAsFixed(2)}%';
+  }
+
+  String get riskReward =>
+      '${((trade.entryPrice - trade.stopLoss) / (trade.target - trade.entryPrice)).abs().toStringAsFixed(2)}x';
+
   double get liveReturnValue {
-    if (trade.entryPrice == 0) return 0.0; // Avoid division by zero
-    if (isSellTrade) {
-      // For SELL, return is (Entry - Current) / Entry
+    if (trade.entryPrice == 0) return 0.0;
+
+    if (tradeDirection == 'Buy') {
+      return ((currentPrice - trade.entryPrice) / trade.entryPrice) * 100;
+    } else {
+      // For 'Sell' trades, profit is (entry - current)
       return ((trade.entryPrice - currentPrice) / trade.entryPrice) * 100;
     }
-    // For BUY, return is (Current - Entry) / Entry
-    return ((currentPrice - trade.entryPrice) / trade.entryPrice) * 100;
   }
 
   String get liveReturn {

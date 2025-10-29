@@ -104,7 +104,7 @@ class ClosedTradesAnalysis extends StatelessWidget {
               ),
             ),
             Text(
-              trade.exitPriceFormatted,
+              trade.exitPrice,
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -159,14 +159,12 @@ class ClosedTradesAnalysis extends StatelessWidget {
                 _buildInfoColumn(
                   context,
                   'Entry',
-                  trade.entryPriceFormatted,
-                  subLabel: 'Timestamp',
+                  trade.entryPrice,
                 ),
                 _buildInfoColumn(
                   context,
                   'Exit',
-                  trade.exitPriceFormatted,
-                  subLabel: 'Timestamp',
+                  trade.exitPrice,
                 ),
               ],
             ),
@@ -191,7 +189,7 @@ class ClosedTradesAnalysis extends StatelessWidget {
                   _buildLabelValueRow(
                     context,
                     'Trade Segment',
-                    trade.trade.tradeSegment,
+                    trade.tradeSegment,
                   ),
                 ],
               ),
@@ -203,13 +201,13 @@ class ClosedTradesAnalysis extends StatelessWidget {
                   _buildLabelValueRow(
                     context,
                     'Trade Direction',
-                    trade.trade.tradeDirection,
+                    trade.tradeDirection,
                   ),
                   const SizedBox(height: 12),
                   _buildLabelValueRow(
                     context,
                     'Trade Category',
-                    trade.trade.tradeCategory,
+                    trade.tradeCategory,
                   ),
                 ],
               ),
@@ -269,24 +267,24 @@ class ClosedTradesAnalysis extends StatelessWidget {
             _buildDetailRow(
               context,
               'Stop Loss',
-              '₹${trade.trade.stopLoss.toStringAsFixed(2)}',
+              trade.stopLoss,
             ),
             _buildDetailRow(
               context,
               'Target',
-              '₹${trade.trade.target.toStringAsFixed(2)}',
+              trade.targetPrice,
             ),
             _buildDetailRow(context, 'Segment', trade.trade.tradeSegment),
             _buildDetailRow(context, 'Signal Category', 'Trading'),
             _buildDetailRow(
               context,
               'Trade Category',
-              trade.trade.tradeCategory,
+              trade.tradeCategory,
             ),
             _buildDetailRow(
               context,
               'Trade Direction',
-              trade.trade.tradeDirection,
+              trade.tradeDirection,
             ),
           ],
         ),

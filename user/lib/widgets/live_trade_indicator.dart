@@ -6,16 +6,16 @@ class LiveTradeIndicator extends StatelessWidget {
   final double target;
   final double entryPrice;
   final double currentPrice;
-  final String tradeDirection; // NEW: Added trade direction
+  final String tradeDirection;
 
   const LiveTradeIndicator({
-    Key? key,
+    super.key,
     required this.stopLoss,
     required this.target,
     required this.entryPrice,
     required this.currentPrice,
-    required this.tradeDirection, // NEW
-  }) : super(key: key);
+    required this.tradeDirection,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +27,7 @@ class LiveTradeIndicator extends StatelessWidget {
         entryPrice: entryPrice,
         currentPrice: currentPrice,
         tradeDirection: tradeDirection,
-        // NEW
+
         profitColor: Theme.of(context).colorScheme.secondary,
         lossColor: Theme.of(context).colorScheme.error,
         textColor: Theme.of(context).textTheme.bodySmall?.color ?? Colors.grey,
@@ -41,7 +41,7 @@ class _TradeIndicatorPainter extends CustomPainter {
   final double target;
   final double entryPrice;
   final double currentPrice;
-  final String tradeDirection; // NEW
+  final String tradeDirection;
   final Color profitColor;
   final Color lossColor;
   final Color textColor;
@@ -51,7 +51,7 @@ class _TradeIndicatorPainter extends CustomPainter {
     required this.target,
     required this.entryPrice,
     required this.currentPrice,
-    required this.tradeDirection, // NEW
+    required this.tradeDirection,
     required this.profitColor,
     required this.lossColor,
     required this.textColor,
@@ -59,13 +59,11 @@ class _TradeIndicatorPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // UPDATED: Robustly calculate the range and min/max values
     final minVal = math.min(stopLoss, target);
     final maxVal = math.max(stopLoss, target);
     final totalRange = maxVal - minVal;
     if (totalRange <= 0) return;
 
-    // UPDATED: This function now works regardless of trade direction
     double getX(double price) {
       final clampedPrice = price.clamp(minVal, maxVal);
       return ((clampedPrice - minVal) / totalRange) * size.width;

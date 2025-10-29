@@ -194,6 +194,7 @@ class _UserClosedTradesScreenState extends State<UserClosedTradesScreen> {
                           children: [
                             TradeCardHeader(
                               advisorName: viewModel.advisorName,
+                              direction: viewModel.tradeDirection,
                               segment: viewModel.tradeSegment,
                               category: viewModel.tradeCategory,
                             ),

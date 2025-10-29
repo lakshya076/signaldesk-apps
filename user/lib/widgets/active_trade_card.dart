@@ -108,7 +108,7 @@ class ActiveTradeCardWidget extends StatelessWidget {
               target: trade.trade.target,
               entryPrice: trade.trade.entryPrice,
               currentPrice: trade.currentPrice,
-              tradeDirection: trade.trade.tradeDirection, // Add this line
+              tradeDirection: trade.tradeDirection,
             ),
             const SizedBox(height: 16),
             Container(
