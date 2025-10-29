@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 
 class TradeCardHeader extends StatelessWidget {
   final String advisorName;
+  final String direction;
   final String segment;
   final String category;
 
   const TradeCardHeader({
     super.key,
     required this.advisorName,
+    required this.direction,
     required this.segment,
     required this.category,
   });
@@ -16,7 +18,6 @@ class TradeCardHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      // Match the horizontal padding of your trade cards
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -25,7 +26,7 @@ class TradeCardHeader extends StatelessWidget {
           Row(
             children: [
               Icon(
-                Icons.person_outline, // Advisor icon
+                Icons.person_outline,
                 size: 16,
                 color: theme.hintColor,
               ),
@@ -40,9 +41,10 @@ class TradeCardHeader extends StatelessWidget {
             ],
           ),
 
-          // Tags for Segment and Category
           Row(
             children: [
+              _buildTag(context, direction, theme.colorScheme.error),
+              const SizedBox(width:6),
               _buildTag(context, segment, theme.colorScheme.primary),
               const SizedBox(width: 6),
               _buildTag(context, category, theme.colorScheme.tertiary),
