@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:signaldesk_advisor/screens/trades/open_trade_analysis.dart';
+import 'package:signaldesk_advisor/services/api_service.dart';
 import 'package:signaldesk_advisor/view_models/active_trade_card_view_model.dart';
 import 'package:signaldesk_advisor/widgets/live_trade_indicator.dart';
 
@@ -14,11 +15,14 @@ class ActiveTradeCardWidget extends StatelessWidget {
   final Function(String tradeId, double newStopLoss, double newTarget)
   onModifyTrade;
 
+  final ApiService apiService;
+
   const ActiveTradeCardWidget({
     super.key,
     required this.trade,
     required this.onManualClose,
     required this.onModifyTrade,
+    required this.apiService,
   });
 
   @override
@@ -232,6 +236,21 @@ class ActiveTradeCardWidget extends StatelessWidget {
 
   Future<void> _showManualCloseDialog(BuildContext context) async {
     final theme = Theme.of(context);
+
+    bool isMarketOpen = await apiService.checkMarketStatus();
+
+    if (context.mounted) {
+      Navigator.of(context, rootNavigator: true).pop();
+    } else {
+      return;
+    }
+
+    if (!isMarketOpen) {
+      if (context.mounted) {
+        _showMarketClosedErrorDialog(context); // Show error and exit
+      }
+      return;
+    }
 
     // Automatically determine the status based on the (now correct) ViewModel
     final double pnlValue = trade.liveReturnValue;
@@ -474,6 +493,28 @@ class ActiveTradeCardWidget extends StatelessWidget {
               child: const Text('Cancel'),
               onPressed: () {
                 Navigator.of(dialogContext).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showMarketClosedErrorDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (BuildContext errorDialogContext) {
+        return AlertDialog(
+          title: const Text('Market Closed'),
+          content: const Text(
+            'Trades can only be manually closed when the market is open.',
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('OK'),
+              onPressed: () {
+                Navigator.of(errorDialogContext).pop(); // Close error dialog
               },
             ),
           ],

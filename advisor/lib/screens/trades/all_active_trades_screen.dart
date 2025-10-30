@@ -300,6 +300,7 @@ class _AllActiveTradesScreenState extends State<AllActiveTradesScreen> {
                                 trade: viewModel,
                                 onManualClose: _handleManualClose,
                                 onModifyTrade: _handleModifyTrade,
+                                apiService: _apiService,
                               ),
                             ],
                           ),

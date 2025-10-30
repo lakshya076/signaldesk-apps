@@ -452,6 +452,7 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
                 trade: viewModel,
                 onManualClose: _handleManualClose,
                 onModifyTrade: _handleModifyTrade,
+                apiService: _apiService,
               );
             } else {
               final viewModel = ClosedTradeCardViewModel(trade: trade);
