@@ -138,7 +138,6 @@ class WatchlistScreenState extends State<WatchlistScreen> {
                       .delete()
                       .match({'id': item.id});
 
-                  // NEW: Unsubscribe from live data
                   await _apiService.unsubscribeFromInstrument(stockSymbol);
 
                   if (!mounted) return;

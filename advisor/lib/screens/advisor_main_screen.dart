@@ -73,10 +73,11 @@ class AdvisorMainScreenState extends State<AdvisorMainScreen> {
       }
 
       if (symbolsToSubscribe.isNotEmpty) {
-        debugPrint('Attempting to bulk subscribe to: ${symbolsToSubscribe.toList()}');
+        debugPrint(
+          'Attempting to bulk subscribe to: ${symbolsToSubscribe.toList()}',
+        );
         await _apiService.bulkSubscribeInstruments(symbolsToSubscribe.toList());
       }
-
     } catch (e) {
       debugPrint("Error fetching symbols for bulk subscription: $e");
       // Optionally show a snackbar error
@@ -213,6 +214,23 @@ class AdvisorMainScreenState extends State<AdvisorMainScreen> {
                   3 // Show only for Watchlist
               ? FloatingActionButton(
                 onPressed: () async {
+                  // TODO: Check if market is open. if not don't let advisor add to watchlist (will have to change in future)
+                  bool isMarketOpen = await _apiService.checkMarketStatus();
+
+                  if (context.mounted) {
+                    Navigator.of(context, rootNavigator: true).pop();
+                  } else {
+                    return;
+                  }
+
+                  if (!isMarketOpen) {
+                    if (context.mounted) {
+                      _showTemporaryWatchlistErrorDialog(
+                        context,
+                      ); // Show error and exit
+                    }
+                    return;
+                  }
                   final result = await showModalBottomSheet<bool>(
                     context: context,
                     isScrollControlled: true,
@@ -248,6 +266,28 @@ class AdvisorMainScreenState extends State<AdvisorMainScreen> {
         currentIndex: _selectedIndex,
         onTap: onItemTapped, // This now points to our updated function
       ),
+    );
+  }
+
+  void _showTemporaryWatchlistErrorDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (BuildContext errorDialogContext) {
+        return AlertDialog(
+          title: const Text('Market Closed'),
+          content: const Text(
+            'Right now items can only be added in watchlist during market hours. We\'re working on this feature right now!',
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('OK'),
+              onPressed: () {
+                Navigator.of(errorDialogContext).pop(); // Close error dialog
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 }
