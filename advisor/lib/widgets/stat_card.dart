@@ -26,13 +26,11 @@ class StatCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 28, color: color), // Slightly smaller icon
-          const Spacer(), // Use Spacer for flexible layout
+          Icon(icon, size: 24, color: color),
+          const Spacer(),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // THIS IS THE KEY CHANGE:
-              // FittedBox scales the text down to prevent it from overflowing.
               FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(

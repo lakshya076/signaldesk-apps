@@ -437,7 +437,6 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
     return Column(
       children:
           displayTrades.asMap().entries.map((entry) {
-            final index = entry.key;
             final trade = entry.value;
 
             Widget tradeCard;

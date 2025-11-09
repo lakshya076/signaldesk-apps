@@ -7,7 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'pending_approval_screen.dart';
 
 class AuthGate extends StatefulWidget {
-  const AuthGate({Key? key}) : super(key: key);
+  const AuthGate({super.key});
 
   @override
   State<AuthGate> createState() => _AuthGateState();

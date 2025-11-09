@@ -70,8 +70,13 @@ class _SearchScreenState extends State<SearchScreen> {
         'stock_symbol': symbol,
       });
 
-      // NEW: Subscribe to live data for this stock
-      await _apiService.subscribeToInstrument(symbol);
+      final isMarketOpen = await _apiService.checkMarketStatus();
+
+      if (isMarketOpen) {
+        await _apiService.subscribeToInstrument(symbol);
+      } else {
+        await _apiService.backfillSubscribeInstrument(symbol);
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

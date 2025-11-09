@@ -5,7 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 
 class ApiService {
-  final String _apiBaseUrl = 'https://signaldesk-backend-cau3.onrender.com';
+  final String _apiBaseUrl = 'https://4776b236016d.ngrok-free.app';
 
   Future<Map<String, Stock>> getAllStocks() async {
     final response = await http.get(Uri.parse('$_apiBaseUrl/get-all-stocks'));
@@ -74,6 +74,26 @@ class ApiService {
       }
     } catch (e) {
       debugPrint('Error subscribing to $symbol: $e');
+    }
+  }
+
+  Future<void> backfillSubscribeInstrument(String symbol) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_apiBaseUrl/backfill-subscribe'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'symbol': symbol, 'action': 'add'}),
+      );
+
+      if (response.statusCode == 200) {
+        debugPrint('✓ Backfill/Subscribe request sent for $symbol');
+      } else {
+        debugPrint('⚠ Failed to backfill/subscribe to $symbol: ${response.body}');
+        throw Exception('Failed to backfill/subscribe');
+      }
+    } catch (e) {
+      debugPrint('✗ Error in backfillSubscribeInstrument: $e');
+      rethrow;
     }
   }
 
