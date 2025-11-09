@@ -83,15 +83,15 @@ class AdvisorCardWidget extends StatelessWidget {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        specialties,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.hintColor,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      // const SizedBox(height: 4),
+                      // Text(
+                      //   specialties,
+                      //   style: theme.textTheme.bodySmall?.copyWith(
+                      //     color: theme.hintColor,
+                      //   ),
+                      //   maxLines: 1,
+                      //   overflow: TextOverflow.ellipsis,
+                      // ),
                     ],
                   ),
                 ),
@@ -118,11 +118,11 @@ class AdvisorCardWidget extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildStatRow(
-                      context,
-                      Icons.work_outline,
-                      '$experience Yrs. experience',
-                    ),
+                    // _buildStatRow(
+                    //   context,
+                    //   Icons.work_outline,
+                    //   '$experience Yrs. experience',
+                    // ),
                     const SizedBox(height: 8),
                     _buildStatRow(
                       context,
