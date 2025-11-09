@@ -5,7 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 
 class ApiService {
-  final String _apiBaseUrl = 'https://4776b236016d.ngrok-free.app';
+  final String _apiBaseUrl = 'https://signaldesk-backend-cau3.onrender.com';
 
   Future<Map<String, Stock>> getAllStocks() async {
     final response = await http.get(Uri.parse('$_apiBaseUrl/get-all-stocks'));
