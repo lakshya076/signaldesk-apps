@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  final String _apiBaseUrl = 'https://signaldesk-backend-cau3.onrender.com';
+  final String _apiBaseUrl = 'https://915f8170b107.ngrok-free.app';
 
   Future<Map<String, double>> getLivePrices(List<String> symbols) async {
     if (symbols.isEmpty) return {};
@@ -67,4 +67,26 @@ class ApiService {
       debugPrint('Error during bulk subscription: $e');
     }
   }
+
+  Future<Map<String, dynamic>?> getStockData(String symbol) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_apiBaseUrl/get-stock-data/$symbol'),
+      );
+
+      if (response.statusCode == 200) {
+        final decoded = json.decode(response.body);
+        return decoded['data'] as Map<String, dynamic>?;
+      } else if (response.statusCode == 404) {
+        debugPrint('Stock $symbol not found');
+        return null;
+      } else {
+        throw Exception('Failed to load stock data: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Error fetching stock data for $symbol: $e');
+      return null;
+    }
+  }
+
 }

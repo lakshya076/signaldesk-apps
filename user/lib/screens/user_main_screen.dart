@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:signaldesk_user/core/theme_provider.dart';
@@ -8,6 +11,7 @@ import 'package:signaldesk_user/screens/trades/user_active_trades_screen.dart';
 import 'package:signaldesk_user/screens/trades/user_closed_trades_screen.dart';
 import 'package:signaldesk_user/screens/advisors/advisors_screen.dart';
 import 'package:signaldesk_user/screens/profile/profile_screen.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
 class UserMainScreen extends StatefulWidget {
   const UserMainScreen({super.key});
@@ -21,14 +25,34 @@ class _UserMainScreenState extends State<UserMainScreen> {
   String _userName = 'User';
   final ApiService _apiService = ApiService();
 
+  WebSocketChannel? _channel;
+  final StreamController<Map<String, dynamic>> _priceStreamController =
+      StreamController.broadcast();
+  late final Stream<Map<String, dynamic>> _priceStream;
+  Timer? _reconnectTimer;
+  bool _isWsConnected = false;
+  final Set<String> _wsSubscriptions = {};
+  final String _wsUrl = "wss://915f8170b107.ngrok-free.app/ws/prices";
+
   @override
   void initState() {
     super.initState();
     _fetchUserName();
 
+    _priceStream = _priceStreamController.stream;
+    _connectWebSocket();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _subscribeToActiveTradeInstruments();
     });
+  }
+
+  @override
+  void dispose() {
+    _reconnectTimer?.cancel();
+    _channel?.sink.close();
+    _priceStreamController.close();
+    super.dispose();
   }
 
   Future<void> _subscribeToActiveTradeInstruments() async {
@@ -68,12 +92,12 @@ class _UserMainScreenState extends State<UserMainScreen> {
         }
       }
 
-      // 3. Bulk subscribe if there are any symbols
+      // Bulk subscribe if there are any symbols
       if (symbolsToSubscribe.isNotEmpty) {
         debugPrint(
           'User App: Attempting to bulk subscribe to active trade symbols: ${symbolsToSubscribe.toList()}',
         );
-        await _apiService.bulkSubscribeInstruments(symbolsToSubscribe.toList());
+        wsSubscribe(symbolsToSubscribe.toList());
       } else {
         debugPrint(
           "User App: No active trade symbols found for subscribed advisors.",
@@ -120,14 +144,118 @@ class _UserMainScreenState extends State<UserMainScreen> {
     });
   }
 
+  void _connectWebSocket() {
+    if (_isWsConnected || _reconnectTimer != null) {
+      return; // Already connected or trying
+    }
+    debugPrint("WebSocket: Connecting to $_wsUrl...");
+
+    try {
+      _channel = WebSocketChannel.connect(Uri.parse(_wsUrl));
+      setState(() => _isWsConnected = true); // Assume connected for now
+
+      _channel!.stream.listen(
+        (message) {
+          if (!_isWsConnected) setState(() => _isWsConnected = true);
+          _reconnectTimer?.cancel();
+          _reconnectTimer = null;
+
+          try {
+            final data = json.decode(message) as Map<String, dynamic>;
+            if (data.containsKey('symbol') && data.containsKey('ltp')) {
+              _priceStreamController.add(data); // Push price data to the stream
+            } else if (data.containsKey('status')) {
+              debugPrint("WebSocket status: ${data['message']}");
+            }
+          } catch (e) {
+            debugPrint("WebSocket: Error parsing message: $e");
+          }
+        },
+        onDone: () {
+          debugPrint("WebSocket: Disconnected.");
+          if (mounted) setState(() => _isWsConnected = false);
+          _reconnectTimer?.cancel();
+          _reconnectTimer = Timer(
+            const Duration(seconds: 5),
+            _connectWebSocket, // Attempt to reconnect
+          );
+        },
+        onError: (error) {
+          debugPrint("WebSocket: Error: $error");
+          if (mounted) setState(() => _isWsConnected = false);
+          _reconnectTimer?.cancel();
+          _reconnectTimer = Timer(
+            const Duration(seconds: 5),
+            _connectWebSocket, // Attempt to reconnect
+          );
+        },
+      );
+
+      _resubscribeWebSocketSymbols();
+    } catch (e) {
+      debugPrint("WebSocket: Connection failed: $e");
+      if (mounted) setState(() => _isWsConnected = false);
+      _reconnectTimer?.cancel();
+      _reconnectTimer = Timer(const Duration(seconds: 5), _connectWebSocket);
+    }
+  }
+
+  void _sendWsMessage(Map<String, dynamic> message) {
+    if (_isWsConnected && _channel != null) {
+      try {
+        _channel!.sink.add(json.encode(message));
+      } catch (e) {
+        debugPrint("WebSocket: Error sending message: $e");
+        _reconnectTimer?.cancel();
+        _reconnectTimer = Timer(const Duration(seconds: 1), _connectWebSocket);
+      }
+    } else {
+      debugPrint(
+        "WebSocket: Not connected. Message will be sent on reconnect.",
+      );
+      if (_reconnectTimer == null && !_isWsConnected) {
+        _reconnectTimer = Timer(const Duration(seconds: 1), _connectWebSocket);
+      }
+    }
+  }
+
+  void wsSubscribe(List<String> symbols) {
+    _wsSubscriptions.addAll(symbols);
+    _sendWsMessage({"action": "subscribe", "symbols": symbols});
+  }
+
+  void wsUnsubscribe(List<String> symbols) {
+    for (var symbol in symbols) {
+      _wsSubscriptions.remove(symbol);
+    }
+    _sendWsMessage({"action": "unsubscribe", "symbols": symbols});
+  }
+
+  void _resubscribeWebSocketSymbols() {
+    if (_wsSubscriptions.isNotEmpty) {
+      debugPrint(
+        "WebSocket: Resubscribing to ${_wsSubscriptions.length} symbols...",
+      );
+      _sendWsMessage({
+        "action": "subscribe",
+        "symbols": _wsSubscriptions.toList(),
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final List<Widget> widgetOptions = <Widget>[
       UserHomeScreen(
         onViewActive: () => _onItemTapped(1),
         onViewClosed: () => _onItemTapped(2),
+        priceStream: _priceStream,
+        onSubscribe: wsSubscribe,
       ),
-      const UserActiveTradesScreen(),
+      UserActiveTradesScreen(
+        priceStream: _priceStream,
+        onSubscribe: wsSubscribe,
+      ),
       const UserClosedTradesScreen(),
       const AdvisorsScreen(),
     ];
