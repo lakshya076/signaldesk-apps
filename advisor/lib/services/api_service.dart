@@ -5,7 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 
 class ApiService {
-  final String _apiBaseUrl = 'https://signaldesk-backend-cau3.onrender.com';
+  final String _apiBaseUrl = 'https://915f8170b107.ngrok-free.app';
 
   Future<Map<String, Stock>> getAllStocks() async {
     final response = await http.get(Uri.parse('$_apiBaseUrl/get-all-stocks'));
@@ -13,7 +13,7 @@ class ApiService {
       final decoded = json.decode(response.body);
       final stockData = decoded['data'] as Map<String, dynamic>;
       return stockData.map(
-            (key, value) => MapEntry(key, Stock.fromJson(key, value)),
+        (key, value) => MapEntry(key, Stock.fromJson(key, value)),
       );
     } else {
       throw Exception('Failed to load stocks');
@@ -31,7 +31,7 @@ class ApiService {
     if (response.statusCode == 200) {
       final decoded = json.decode(response.body);
       final prices = (decoded['data'] as Map<String, dynamic>).map(
-            (key, value) => MapEntry(key, (value as num).toDouble()),
+        (key, value) => MapEntry(key, (value as num).toDouble()),
       );
       return prices;
     } else {
@@ -88,7 +88,9 @@ class ApiService {
       if (response.statusCode == 200) {
         debugPrint('✓ Backfill/Subscribe request sent for $symbol');
       } else {
-        debugPrint('⚠ Failed to backfill/subscribe to $symbol: ${response.body}');
+        debugPrint(
+          '⚠ Failed to backfill/subscribe to $symbol: ${response.body}',
+        );
         throw Exception('Failed to backfill/subscribe');
       }
     } catch (e) {

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:signaldesk_advisor/models/advisor_stats.dart';
+import 'package:signaldesk_advisor/models/stock.dart';
 import 'package:signaldesk_advisor/models/trade_card_model.dart';
 import 'package:signaldesk_advisor/services/api_service.dart';
 import 'package:signaldesk_advisor/view_models/active_trade_card_view_model.dart';
@@ -14,11 +15,15 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class AdvisorHomeScreen extends StatefulWidget {
   final VoidCallback onViewActive;
   final VoidCallback onViewClosed;
+  final Stream<Map<String, dynamic>>? priceStream;
+  final Function(List<String> symbols) onSubscribe;
 
   const AdvisorHomeScreen({
     super.key,
     required this.onViewActive,
     required this.onViewClosed,
+    this.priceStream,
+    required this.onSubscribe,
   });
 
   @override
@@ -30,9 +35,10 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
   List<TradeCardModel> _activeTrades = [];
   List<TradeCardModel> _closedTrades = [];
   Map<String, double> _livePrices = {};
+  Map<String, Stock> _stockDataMap = {};
   bool _isLoading = true;
   String? _errorMessage;
-  Timer? _priceTimer;
+  StreamSubscription? _priceSubscription;
   final _apiService = ApiService();
   RealtimeChannel? _tradesChannel;
   String? _advisorId;
@@ -41,6 +47,31 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
   void initState() {
     super.initState();
     _initializeAdvisorData();
+    _listenToPriceStream();
+  }
+
+  @override
+  void didUpdateWidget(covariant AdvisorHomeScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.priceStream != oldWidget.priceStream) {
+      _listenToPriceStream();
+    }
+  }
+
+  void _listenToPriceStream() {
+    _priceSubscription?.cancel();
+    _priceSubscription = widget.priceStream?.listen((priceData) {
+      final symbol = priceData['symbol'] as String?;
+      final ltp = (priceData['ltp'] as num?)?.toDouble();
+
+      if (symbol != null && ltp != null && mounted) {
+        if (_livePrices[symbol] != ltp) {
+          setState(() {
+            _livePrices[symbol] = ltp;
+          });
+        }
+      }
+    });
   }
 
   Future<void> _initializeAdvisorData() async {
@@ -97,15 +128,53 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
               .map((e) => TradeCardModel.fromJson(e as Map<String, dynamic>))
               .toList();
 
+      final activeTrades_ = allCards.where((c) => c.status == 'open').toList();
+
+      final Map<String, Stock> fetchedStockData = {};
+      final Set<String> symbols =
+          activeTrades_.map((c) => c.stockSymbol).toSet();
+
+      final List<Future<void>> stockFutures = [];
+      for (var symbol in symbols) {
+        stockFutures.add(
+          _apiService
+              .getStockData(symbol)
+              .then((stockJson) {
+                if (stockJson != null && mounted) {
+                  fetchedStockData[symbol] = Stock.fromJson(symbol, stockJson);
+                }
+              })
+              .catchError((e) {
+                debugPrint("Failed to fetch stock data for $symbol: $e");
+              }),
+        );
+      }
+      await Future.wait(stockFutures);
+
       setState(() {
         _advisorStats = fetchedStats;
-        _activeTrades = allCards.where((c) => c.status == 'open').toList();
+        _activeTrades = activeTrades_;
         _closedTrades = allCards.where((c) => c.status != 'open').toList();
+        _stockDataMap = fetchedStockData;
         _isLoading = false;
         _errorMessage = null;
       });
 
-      _startPriceTimer();
+      final Set<String> activeSymbols =
+          activeTrades_.map((c) => c.stockSymbol).toSet();
+      if (activeSymbols.isNotEmpty) {
+        debugPrint(
+          "[Home] Subscribing to ${activeSymbols.length} active symbols...",
+        );
+        widget.onSubscribe(activeSymbols.toList());
+
+        // Might be obsolete idk
+        for (var symbol in activeSymbols) {
+          _apiService.subscribeToInstrument(symbol).catchError((e) {
+            debugPrint("[Home] Error subscribing to $symbol: $e");
+          });
+        }
+      }
     } catch (e) {
       _handleError('Error fetching advisor data: $e');
     }
@@ -142,7 +211,7 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
 
   @override
   void dispose() {
-    _priceTimer?.cancel();
+    _priceSubscription?.cancel();
     _cleanupRealtimeSubscription();
     super.dispose();
   }
@@ -172,42 +241,7 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
     }
   }
 
-  void _startPriceTimer() {
-    _priceTimer?.cancel();
-
-    if (_activeTrades.isNotEmpty) {
-      _priceTimer = Timer.periodic(
-        const Duration(seconds: 2),
-        (timer) => _updateLivePrices(),
-      );
-      _updateLivePrices();
-    }
-  }
-
-  Future<void> _updateLivePrices() async {
-    if (_activeTrades.isEmpty || !mounted) return;
-
-    try {
-      final symbols =
-          _activeTrades
-              .map((card) => card.stockSymbol)
-              .where((symbol) => symbol.isNotEmpty)
-              .toSet()
-              .toList();
-
-      if (symbols.isEmpty) return;
-
-      final prices = await _apiService.getLivePrices(symbols);
-      if (mounted) {
-        setState(() => _livePrices = prices);
-      }
-    } catch (e) {
-      debugPrint("Error fetching live prices: $e");
-    }
-  }
-
   Future<void> _refresh() async {
-    _priceTimer?.cancel();
     await _fetchAdvisorData();
   }
 
@@ -441,8 +475,14 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
 
             Widget tradeCard;
             if (isActive) {
+              final prevClose = trade.lastPrice;
+              final stockData = _stockDataMap[trade.stockSymbol];
+
               final livePrice =
-                  _livePrices[trade.stockSymbol] ?? trade.lastPrice;
+                  _livePrices[trade.stockSymbol] ??
+                  stockData?.ltp ??
+                  prevClose; // Fallback
+
               final viewModel = ActiveTradeCardViewModel(
                 trade: trade,
                 currentPrice: livePrice,

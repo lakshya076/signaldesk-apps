@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:signaldesk_advisor/models/stock.dart';
 import 'package:signaldesk_advisor/models/trade_card_model.dart';
 import 'package:signaldesk_advisor/services/api_service.dart';
 import 'package:signaldesk_advisor/view_models/active_trade_card_view_model.dart';
@@ -9,7 +10,14 @@ import 'package:signaldesk_advisor/widgets/trade_card_header.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AllActiveTradesScreen extends StatefulWidget {
-  const AllActiveTradesScreen({super.key});
+  final Stream<Map<String, dynamic>>? priceStream;
+  final Function(List<String> symbols) onSubscribe;
+
+  const AllActiveTradesScreen({
+    super.key,
+    this.priceStream,
+    required this.onSubscribe,
+  });
 
   @override
   State<AllActiveTradesScreen> createState() => _AllActiveTradesScreenState();
@@ -20,7 +28,8 @@ class _AllActiveTradesScreenState extends State<AllActiveTradesScreen> {
   List<ActiveTradeCardViewModel> _filteredTradeCards = [];
   Map<String, double> _livePrices = {};
   bool _isLoading = true;
-  Timer? _timer;
+  StreamSubscription? _priceSubscription;
+  Map<String, Stock> _stockDataMap = {};
   final _apiService = ApiService();
   String _selectedFilter = 'All';
   RealtimeChannel? _tradesChannel;
@@ -30,6 +39,32 @@ class _AllActiveTradesScreenState extends State<AllActiveTradesScreen> {
     super.initState();
     _fetchTradeCards();
     _setupRealtimeSubscription();
+    _listenToPriceStream();
+  }
+
+  @override
+  void didUpdateWidget(covariant AllActiveTradesScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.priceStream != oldWidget.priceStream) {
+      _listenToPriceStream();
+    }
+  }
+
+  void _listenToPriceStream() {
+    _priceSubscription?.cancel();
+    _priceSubscription = widget.priceStream?.listen((priceData) {
+      final symbol = priceData['symbol'] as String?;
+      final ltp = (priceData['ltp'] as num?)?.toDouble();
+
+      if (symbol != null && ltp != null && mounted) {
+        if (_livePrices[symbol] != ltp) {
+          setState(() {
+            _livePrices[symbol] = ltp;
+            _filterAndRefresh();
+          });
+        }
+      }
+    });
   }
 
   void _setupRealtimeSubscription() {
@@ -60,7 +95,7 @@ class _AllActiveTradesScreenState extends State<AllActiveTradesScreen> {
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _priceSubscription?.cancel();
     _tradesChannel?.unsubscribe();
     super.dispose();
   }
@@ -78,9 +113,30 @@ class _AllActiveTradesScreenState extends State<AllActiveTradesScreen> {
       final cards =
           (response as List).map((e) => TradeCardModel.fromJson(e)).toList();
 
+      final Map<String, Stock> fetchedStockData = {};
+      final Set<String> symbols = cards.map((c) => c.stockSymbol).toSet();
+
+      final List<Future<void>> stockFutures = [];
+      for (var symbol in symbols) {
+        stockFutures.add(
+          _apiService
+              .getStockData(symbol)
+              .then((stockJson) {
+                if (stockJson != null && mounted) {
+                  fetchedStockData[symbol] = Stock.fromJson(symbol, stockJson);
+                }
+              })
+              .catchError((e) {
+                debugPrint("Failed to fetch stock data for $symbol: $e");
+              }),
+        );
+      }
+      await Future.wait(stockFutures);
+
       if (mounted) {
         setState(() {
           _tradeCards = cards;
+          _stockDataMap = fetchedStockData;
           _isLoading = false;
         });
 
@@ -88,8 +144,16 @@ class _AllActiveTradesScreenState extends State<AllActiveTradesScreen> {
           _apiService.subscribeToInstrument(card.stockSymbol);
         }
 
+        final Set<String> activeSymbols =
+            cards.map((c) => c.stockSymbol).toSet();
+        if (activeSymbols.isNotEmpty) {
+          debugPrint(
+            "[AllActive] Requesting WS subscription for ${activeSymbols.length} symbols...",
+          );
+          widget.onSubscribe(activeSymbols.toList());
+        }
+
         _filterAndRefresh();
-        _startPriceTimer();
       }
     } catch (e) {
       if (mounted) {
@@ -98,32 +162,6 @@ class _AllActiveTradesScreenState extends State<AllActiveTradesScreen> {
         ).showSnackBar(SnackBar(content: Text("Error fetching trades: $e")));
         setState(() => _isLoading = false);
       }
-    }
-  }
-
-  void _startPriceTimer() {
-    _timer?.cancel();
-    _timer = Timer.periodic(
-      const Duration(seconds: 2),
-      (timer) => _updateLivePrices(),
-    );
-    _updateLivePrices();
-  }
-
-  Future<void> _updateLivePrices() async {
-    if (_tradeCards.isEmpty || !mounted) return;
-    try {
-      final symbols =
-          _tradeCards.map((card) => card.stockSymbol).toSet().toList();
-      final prices = await _apiService.getLivePrices(symbols);
-      if (mounted) {
-        setState(() {
-          _livePrices = prices;
-          _filterAndRefresh();
-        });
-      }
-    } catch (e) {
-      debugPrint("Error fetching live prices for trades: $e");
     }
   }
 
@@ -137,7 +175,13 @@ class _AllActiveTradesScreenState extends State<AllActiveTradesScreen> {
   void _filterAndRefresh() {
     final allViewModels =
         _tradeCards.map((trade) {
-          final livePrice = _livePrices[trade.stockSymbol] ?? trade.lastPrice;
+          final prevClose = trade.lastPrice;
+          final stockData = _stockDataMap[trade.stockSymbol];
+          final livePrice =
+              _livePrices[trade.stockSymbol] ??
+              stockData?.ltp ??
+              prevClose; // Fallback
+
           return ActiveTradeCardViewModel(
             trade: trade,
             currentPrice: livePrice,
@@ -161,7 +205,6 @@ class _AllActiveTradesScreenState extends State<AllActiveTradesScreen> {
   }
 
   Future<void> _refresh() async {
-    _timer?.cancel();
     await _fetchTradeCards();
   }
 
@@ -185,7 +228,7 @@ class _AllActiveTradesScreenState extends State<AllActiveTradesScreen> {
             'status': newStatus,
             'closed_at': 'now()',
             'last_price': closingPrice,
-            'manual_exit_price' : closingPrice
+            'manual_exit_price': closingPrice,
           })
           .eq('id', tradeId);
 

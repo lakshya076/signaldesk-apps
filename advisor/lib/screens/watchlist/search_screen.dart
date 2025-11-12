@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:signaldesk_advisor/screens/advisor_main_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:signaldesk_advisor/models/stock.dart';
 import 'package:signaldesk_advisor/services/api_service.dart';
@@ -70,6 +71,8 @@ class _SearchScreenState extends State<SearchScreen> {
         'stock_symbol': symbol,
       });
 
+      final mainScreenState =
+          context.findAncestorStateOfType<AdvisorMainScreenState>();
       final isMarketOpen = await _apiService.checkMarketStatus();
 
       if (isMarketOpen) {
@@ -77,6 +80,8 @@ class _SearchScreenState extends State<SearchScreen> {
       } else {
         await _apiService.backfillSubscribeInstrument(symbol);
       }
+
+      mainScreenState?.wsSubscribe([symbol]);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:signaldesk_advisor/screens/advisor_main_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:signaldesk_advisor/models/stock.dart';
 import 'package:signaldesk_advisor/models/watchlist_item.dart';
@@ -9,7 +10,13 @@ import 'package:signaldesk_advisor/widgets/watchlist_tile.dart';
 class WatchlistScreen extends StatefulWidget {
   final Function(Stock) onCreateTrade;
 
-  const WatchlistScreen({super.key, required this.onCreateTrade});
+  final Stream<Map<String, dynamic>>? priceStream; // Updated type
+
+  const WatchlistScreen({
+    super.key,
+    required this.onCreateTrade,
+    this.priceStream,
+  });
 
   @override
   State<WatchlistScreen> createState() => WatchlistScreenState();
@@ -19,13 +26,42 @@ class WatchlistScreenState extends State<WatchlistScreen> {
   List<WatchlistItem> _watchlist = [];
   Map<String, double> _livePrices = {};
   bool _isLoading = true;
-  Timer? _timer;
   final _apiService = ApiService();
+  StreamSubscription? _priceSubscription;
 
   @override
   void initState() {
     super.initState();
     _fetchWatchlist();
+    _listenToPriceStream();
+  }
+
+  @override
+  void didUpdateWidget(covariant WatchlistScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // If the stream instance changes, re-subscribe
+    if (widget.priceStream != oldWidget.priceStream) {
+      _listenToPriceStream();
+    }
+  }
+
+  void _listenToPriceStream() {
+    _priceSubscription?.cancel(); // Cancel old one if exists
+    _priceSubscription = widget.priceStream?.listen((priceData) {
+      final symbol = priceData['symbol'] as String?;
+      final ltp = (priceData['ltp'] as num?)?.toDouble();
+
+      if (symbol != null && ltp != null) {
+        if (mounted) {
+          // Only update if the price is different
+          if (_livePrices[symbol] != ltp) {
+            setState(() {
+              _livePrices[symbol] = ltp;
+            });
+          }
+        }
+      }
+    });
   }
 
   // Renamed to be more descriptive and avoid conflict
@@ -41,31 +77,51 @@ class WatchlistScreenState extends State<WatchlistScreen> {
           .eq('advisor_id', advisorId);
 
       final watchlistItems =
-      (response as List)
-          .map(
-            (item) => WatchlistItem(
-          id: item['id'],
-          stockSymbol: item['stock_symbol'],
-        ),
-      )
-          .toList();
+          (response as List)
+              .map(
+                (item) => WatchlistItem(
+                  id: item['id'],
+                  stockSymbol: item['stock_symbol'],
+                ),
+              )
+              .toList();
 
-      final allStocks = await _apiService.getAllStocks();
-
-      // Subscribe to all watchlist items
+      //final allStocks = await _apiService.getAllStocks();
+      final List<Future<Map<String, dynamic>?>> stockDataFutures = [];
       for (var item in watchlistItems) {
-        item.stockData = allStocks[item.stockSymbol];
-        // Subscribe in background (don't await to avoid blocking UI)
-        _apiService.subscribeToInstrument(item.stockSymbol);
+        stockDataFutures.add(_apiService.getStockData(item.stockSymbol));
+      }
+
+      final List<Map<String, dynamic>?> allStockData = await Future.wait(
+        stockDataFutures,
+      );
+
+      final List<String> symbolsToSubscribe = [];
+      final List<WatchlistItem> updatedWatchlist = [];
+
+      for (int i = 0; i < watchlistItems.length; i++) {
+        final item = watchlistItems[i];
+        final stockDataJson = allStockData[i];
+
+        if (stockDataJson != null) {
+          // Create the Stock object from the JSON
+          item.stockData = Stock.fromJson(item.stockSymbol, stockDataJson);
+          updatedWatchlist.add(item); // Add to the new list
+          symbolsToSubscribe.add(item.stockSymbol);
+        } else {
+          debugPrint("Could not find data for ${item.stockSymbol}");
+        }
       }
 
       if (mounted) {
         setState(() {
-          _watchlist = watchlistItems;
+          _watchlist = updatedWatchlist; // Use the new list
           _isLoading = false;
         });
-        _startPriceTimer();
       }
+      final mainScreenState =
+          context.findAncestorStateOfType<AdvisorMainScreenState>();
+      mainScreenState?.wsSubscribe(symbolsToSubscribe);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -84,26 +140,6 @@ class WatchlistScreenState extends State<WatchlistScreen> {
   // This is the original method name, now it calls the new internal one
   Future<void> _fetchWatchlist() async {
     await _internalFetchWatchlist();
-  }
-
-  void _startPriceTimer() {
-    _timer?.cancel();
-    _timer = Timer.periodic(
-      const Duration(seconds: 2),
-          (timer) => _updateLivePrices(),
-    );
-    _updateLivePrices();
-  }
-
-  Future<void> _updateLivePrices() async {
-    if (_watchlist.isEmpty || !mounted) return;
-    try {
-      final symbols = _watchlist.map((item) => item.stockSymbol).toList();
-      final prices = await _apiService.getLivePrices(symbols);
-      if (mounted) setState(() => _livePrices = prices);
-    } catch (e) {
-      debugPrint("Error fetching live prices: $e");
-    }
   }
 
   Future<void> _showDeleteConfirmationDialog(WatchlistItem item) async {
@@ -140,6 +176,10 @@ class WatchlistScreenState extends State<WatchlistScreen> {
 
                   await _apiService.unsubscribeFromInstrument(stockSymbol);
 
+                  final mainScreenState =
+                      context.findAncestorStateOfType<AdvisorMainScreenState>();
+                  mainScreenState?.wsUnsubscribe([stockSymbol]);
+
                   if (!mounted) return;
 
                   Navigator.of(dialogContext).pop();
@@ -168,7 +208,7 @@ class WatchlistScreenState extends State<WatchlistScreen> {
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _priceSubscription?.cancel();
     super.dispose();
   }
 
@@ -178,32 +218,35 @@ class WatchlistScreenState extends State<WatchlistScreen> {
     return _isLoading
         ? const Center(child: CircularProgressIndicator())
         : ListView.builder(
-      padding: const EdgeInsets.only(bottom: 80),
-      itemCount: _watchlist.length,
-      itemBuilder: (context, index) {
-        final item = _watchlist[index];
-        final livePrice =
-            _livePrices[item.stockSymbol] ??
-                item.stockData?.lastPrice ??
-                0.0;
-        final lastPrice = item.stockData?.lastPrice ?? 0.0;
-        final change = livePrice - lastPrice;
-        final percentChange =
-        lastPrice != 0 ? (change / lastPrice) * 100 : 0.0;
+          padding: const EdgeInsets.only(bottom: 80),
+          itemCount: _watchlist.length,
+          itemBuilder: (context, index) {
+            final item = _watchlist[index];
 
-        return InkWell(
-          onLongPress: () {
-            _showDeleteConfirmationDialog(item);
+            final lastPrice = item.stockData?.lastPrice ?? 0.0;
+
+            final livePrice =
+                _livePrices[item.stockSymbol] ??
+                item.stockData?.ltp ??
+                lastPrice;
+
+            final change = livePrice - lastPrice;
+            final percentChange =
+                lastPrice != 0 ? (change / lastPrice) * 100 : 0.0;
+
+            return InkWell(
+              onLongPress: () {
+                _showDeleteConfirmationDialog(item);
+              },
+              child: WatchlistTile(
+                stock: item.stockData,
+                livePrice: livePrice,
+                change: change,
+                percentChange: percentChange,
+                onCreateTrade: widget.onCreateTrade,
+              ),
+            );
           },
-          child: WatchlistTile(
-            stock: item.stockData,
-            livePrice: livePrice,
-            change: change,
-            percentChange: percentChange,
-            onCreateTrade: widget.onCreateTrade,
-          ),
         );
-      },
-    );
   }
 }

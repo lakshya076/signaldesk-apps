@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
+import 'dart:async';
+import 'dart:convert';
+import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:signaldesk_advisor/screens/advisor_home_screen.dart';
 import 'package:signaldesk_advisor/screens/trades/all_active_trades_screen.dart';
 import 'package:signaldesk_advisor/screens/trades/all_closed_trades_screen.dart';
@@ -30,13 +32,131 @@ class AdvisorMainScreenState extends State<AdvisorMainScreen> {
   final GlobalKey<WatchlistScreenState> _watchlistKey =
       GlobalKey<WatchlistScreenState>();
 
+  WebSocketChannel? _channel;
+  final StreamController<Map<String, dynamic>> _priceStreamController =
+      StreamController.broadcast();
+  late final Stream<Map<String, dynamic>> _priceStream;
+  Timer? _reconnectTimer;
+  bool _isWsConnected = false;
+  final Set<String> _wsSubscriptions = {};
+  final String _wsUrl = "wss://915f8170b107.ngrok-free.app/ws/prices";
+
   @override
   void initState() {
     super.initState();
-    // Call the new subscription method after the frame is built
+    _priceStream = _priceStreamController.stream;
+    _connectWebSocket();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _subscribeToAllInstruments();
     });
+  }
+
+  @override
+  void dispose() {
+    _reconnectTimer?.cancel();
+    _channel?.sink.close();
+    _priceStreamController.close();
+    super.dispose();
+  }
+
+  void _connectWebSocket() {
+    if (_isWsConnected || _reconnectTimer != null) {
+      return; // Already connected or trying
+    }
+    debugPrint("WebSocket: Connecting to $_wsUrl...");
+
+    try {
+      _channel = WebSocketChannel.connect(Uri.parse(_wsUrl));
+      setState(() => _isWsConnected = true); // Assume connected for now
+
+      _channel!.stream.listen(
+        (message) {
+          if (!_isWsConnected) setState(() => _isWsConnected = true);
+          _reconnectTimer?.cancel(); // Successful message, cancel retry timer
+          _reconnectTimer = null;
+
+          try {
+            final data = json.decode(message) as Map<String, dynamic>;
+            if (data.containsKey('symbol') && data.containsKey('ltp')) {
+              _priceStreamController.add(data);
+            } else if (data.containsKey('status')) {
+              debugPrint("WebSocket status: ${data['message']}");
+            }
+          } catch (e) {
+            debugPrint("WebSocket: Error parsing message: $e");
+          }
+        },
+        onDone: () {
+          debugPrint("WebSocket: Disconnected.");
+          if (mounted) setState(() => _isWsConnected = false);
+          _reconnectTimer?.cancel();
+          _reconnectTimer = Timer(
+            const Duration(seconds: 5),
+            _connectWebSocket,
+          );
+        },
+        onError: (error) {
+          debugPrint("WebSocket: Error: $error");
+          if (mounted) setState(() => _isWsConnected = false);
+          _reconnectTimer?.cancel();
+          _reconnectTimer = Timer(
+            const Duration(seconds: 5),
+            _connectWebSocket,
+          );
+        },
+      );
+
+      // After connecting, re-subscribe to all our known symbols
+      _resubscribeWebSocketSymbols();
+    } catch (e) {
+      debugPrint("WebSocket: Connection failed: $e");
+      if (mounted) setState(() => _isWsConnected = false);
+      _reconnectTimer?.cancel();
+      _reconnectTimer = Timer(const Duration(seconds: 5), _connectWebSocket);
+    }
+  }
+
+  void _sendWsMessage(Map<String, dynamic> message) {
+    if (_isWsConnected && _channel != null) {
+      try {
+        _channel!.sink.add(json.encode(message));
+      } catch (e) {
+        debugPrint("WebSocket: Error sending message: $e");
+        // Trigger reconnect
+        _reconnectTimer?.cancel();
+        _reconnectTimer = Timer(const Duration(seconds: 1), _connectWebSocket);
+      }
+    } else {
+      debugPrint(
+        "WebSocket: Not connected. Message will be sent on reconnect.",
+      );
+      // Ensure we try to reconnect
+      if (_reconnectTimer == null && !_isWsConnected) {
+        _reconnectTimer = Timer(const Duration(seconds: 1), _connectWebSocket);
+      }
+    }
+  }
+
+  void wsSubscribe(List<String> symbols) {
+    _wsSubscriptions.addAll(symbols);
+    _sendWsMessage({"action": "subscribe", "symbols": symbols});
+  }
+
+  void wsUnsubscribe(List<String> symbols) {
+    for (var symbol in symbols) {
+      _wsSubscriptions.remove(symbol);
+    }
+    _sendWsMessage({"action": "unsubscribe", "symbols": symbols});
+  }
+
+  void _resubscribeWebSocketSymbols() {
+    if (_wsSubscriptions.isNotEmpty) {
+      debugPrint(
+        "WebSocket: Resubscribing to ${_wsSubscriptions.length} symbols...",
+      );
+      wsSubscribe(List.from(_wsSubscriptions));
+    }
   }
 
   Future<void> _subscribeToAllInstruments() async {
@@ -77,6 +197,7 @@ class AdvisorMainScreenState extends State<AdvisorMainScreen> {
           'Attempting to bulk subscribe to: ${symbolsToSubscribe.toList()}',
         );
         await _apiService.bulkSubscribeInstruments(symbolsToSubscribe.toList());
+        wsSubscribe(symbolsToSubscribe.toList());
       }
     } catch (e) {
       debugPrint("Error fetching symbols for bulk subscription: $e");
@@ -169,8 +290,13 @@ class AdvisorMainScreenState extends State<AdvisorMainScreen> {
       AdvisorHomeScreen(
         onViewActive: () => onItemTapped(1),
         onViewClosed: () => onItemTapped(2),
+        priceStream: _priceStream,
+        onSubscribe: wsSubscribe,
       ),
-      const AllActiveTradesScreen(),
+      AllActiveTradesScreen(
+        priceStream: _priceStream,
+        onSubscribe: wsSubscribe,
+      ),
       const AllClosedTradesScreen(),
       // Assign the GlobalKey to the WatchlistScreen instance
       WatchlistScreen(
@@ -178,6 +304,7 @@ class AdvisorMainScreenState extends State<AdvisorMainScreen> {
         onCreateTrade: (stock) {
           _navigateToCreateTrade(stock);
         },
+        priceStream: _priceStream,
       ),
       CreateTradeCardScreen(preselectedStock: _stockToCreateTrade),
     ];
@@ -192,7 +319,17 @@ class AdvisorMainScreenState extends State<AdvisorMainScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(titles[_selectedIndex]),
+        title: Row(
+          children: [
+            Text(titles[_selectedIndex]),
+            const SizedBox(width: 8),
+            Icon(
+              _isWsConnected ? Icons.cloud_done : Icons.cloud_off,
+              color: _isWsConnected ? Colors.green : Colors.red,
+              size: 20,
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.brightness_6),
