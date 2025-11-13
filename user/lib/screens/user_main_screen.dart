@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:signaldesk_user/core/theme_provider.dart';
-import 'package:signaldesk_user/services/api_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:signaldesk_user/screens/user_home_screen.dart';
 import 'package:signaldesk_user/screens/trades/user_active_trades_screen.dart';
@@ -23,7 +22,6 @@ class UserMainScreen extends StatefulWidget {
 class _UserMainScreenState extends State<UserMainScreen> {
   int _selectedIndex = 0;
   String _userName = 'User';
-  final ApiService _apiService = ApiService();
 
   WebSocketChannel? _channel;
   final StreamController<Map<String, dynamic>> _priceStreamController =

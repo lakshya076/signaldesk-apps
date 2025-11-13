@@ -88,7 +88,7 @@ class ActiveTradeCardViewModel {
   }
 
   String get riskReward =>
-      '${((trade.entryPrice - trade.stopLoss) / (trade.target - trade.entryPrice)).abs().toStringAsFixed(2)}x';
+      '${((trade.target - trade.entryPrice) / (trade.entryPrice - trade.stopLoss)).abs().toStringAsFixed(2)}x';
 
   double get liveReturnValue {
     if (trade.entryPrice == 0) return 0.0;
