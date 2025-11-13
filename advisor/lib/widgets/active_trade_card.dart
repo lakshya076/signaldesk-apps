@@ -239,11 +239,7 @@ class ActiveTradeCardWidget extends StatelessWidget {
 
     bool isMarketOpen = await apiService.checkMarketStatus();
 
-    if (context.mounted) {
-      Navigator.of(context, rootNavigator: true).pop();
-    } else {
-      return;
-    }
+    if (!context.mounted) return;
 
     if (!isMarketOpen) {
       if (context.mounted) {

@@ -269,7 +269,7 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
           .eq('id', tradeId);
 
       if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop(); // Hide loading
+      Navigator.of(context).pop();
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -281,7 +281,7 @@ class _AdvisorHomeScreenState extends State<AdvisorHomeScreen> {
       _fetchAdvisorData();
     } catch (e) {
       if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop(); // Hide loading
+      Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to close trade: $e'),

@@ -233,7 +233,7 @@ class _AllActiveTradesScreenState extends State<AllActiveTradesScreen> {
           .eq('id', tradeId);
 
       if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop(); // Hide loading
+      Navigator.of(context).pop(); // Hide loading
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -246,7 +246,8 @@ class _AllActiveTradesScreenState extends State<AllActiveTradesScreen> {
       _fetchTradeCards();
     } catch (e) {
       if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop(); // Hide loading
+      Navigator.of(context).pop();
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to close trade: $e'),
