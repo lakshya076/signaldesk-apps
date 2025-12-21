@@ -21,9 +21,11 @@ class AdminStats {
     return AdminStats(
       userGrowth: UserGrowthStats.fromJson(json['user_and_advisor_growth']),
       tradePerformance: TradePerformanceStats.fromJson(
-          json['trade_and_performance']),
+        json['trade_and_performance'],
+      ),
       platformActivity: PlatformActivityStats.fromJson(
-          json['platform_activity']),
+        json['platform_activity'],
+      ),
     );
   }
 }
@@ -54,14 +56,14 @@ class UserGrowthStats {
       newUsersLast30d: json['new_users_last_30d'] ?? 0,
       newAdvisorsLast30d: json['new_advisors_last_30d'] ?? 0,
       totalSubscriptions: json['total_subscriptions'] ?? 0,
-      userRegistrationsLast7d: (json['user_registrations_last_7d'] as List? ??
-          [])
-          .map((item) => DailyDataPoint.fromJson(item))
-          .toList(),
-      subscriptionActivityLast7d: (json['subscription_activity_last_7d'] as List? ??
-          [])
-          .map((item) => DailyDataPoint.fromJson(item))
-          .toList(),
+      userRegistrationsLast7d:
+          (json['user_registrations_last_7d'] as List? ?? [])
+              .map((item) => DailyDataPoint.fromJson(item))
+              .toList(),
+      subscriptionActivityLast7d:
+          (json['subscription_activity_last_7d'] as List? ?? [])
+              .map((item) => DailyDataPoint.fromJson(item))
+              .toList(),
     );
   }
 }
@@ -83,12 +85,14 @@ class TradePerformanceStats {
     return TradePerformanceStats(
       totalTrades: json['total_trades'] ?? 0,
       breakdown: Map<String, int>.from(json['trade_status_breakdown'] ?? {}),
-      topPerformingAdvisors: (json['top_performing_advisors'] as List? ?? [])
-          .map((item) => TopAdvisor.fromJson(item))
-          .toList(),
-      mostTradedStocks: (json['most_traded_stocks'] as List? ?? [])
-          .map((item) => TopStock.fromJson(item))
-          .toList(),
+      topPerformingAdvisors:
+          (json['top_performing_advisors'] as List? ?? [])
+              .map((item) => TopAdvisor.fromJson(item))
+              .toList(),
+      mostTradedStocks:
+          (json['most_traded_stocks'] as List? ?? [])
+              .map((item) => TopStock.fromJson(item))
+              .toList(),
     );
   }
 }
@@ -100,9 +104,10 @@ class PlatformActivityStats {
 
   factory PlatformActivityStats.fromJson(Map<String, dynamic> json) {
     return PlatformActivityStats(
-      tradesCreatedLast7d: (json['trades_created_last_7d'] as List? ?? [])
-          .map((item) => DailyDataPoint.fromJson(item))
-          .toList(),
+      tradesCreatedLast7d:
+          (json['trades_created_last_7d'] as List? ?? [])
+              .map((item) => DailyDataPoint.fromJson(item))
+              .toList(),
     );
   }
 }
@@ -151,12 +156,35 @@ class TopStock {
   }
 }
 
+class PendingAdvisor {
+  final String id;
+  final String name;
+  final String email;
+  final String licenseType;
+  final String registrationNumber;
 
-// --- 2. API SERVICE ---
-// Handles the network request to your backend.
+  PendingAdvisor({
+    required this.id,
+    required this.name,
+    required this.email,
+    required this.licenseType,
+    required this.registrationNumber,
+  });
+
+  factory PendingAdvisor.fromJson(Map<String, dynamic> json) {
+    final details = json['advisor_details'] as Map<String, dynamic>?;
+    return PendingAdvisor(
+      id: json['id'],
+      name: '${json['first_name'] ?? ''} ${json['last_name'] ?? ''}'.trim(),
+      email: json['email'] ?? 'N/A',
+      licenseType: details?['license_type'] ?? 'N/A',
+      registrationNumber: details?['registration_number'] ?? 'N/A',
+    );
+  }
+}
+
 class ApiService {
-  // Replace with your actual backend URL
-  final String _apiBaseUrl = 'https://c19cb4c0f9fe.ngrok-free.app';
+  final String _apiBaseUrl = 'https://e7d6114c6c3d.ngrok-free.app';
 
   Future<AdminStats> getDashboardStats() async {
     final session = Supabase.instance.client.auth.currentSession;
@@ -166,9 +194,7 @@ class ApiService {
 
     final response = await http.get(
       Uri.parse('$_apiBaseUrl/admin/dashboard-stats'),
-      headers: {
-        'Authorization': 'Bearer ${session.accessToken}',
-      },
+      headers: {'Authorization': 'Bearer ${session.accessToken}'},
     );
 
     if (response.statusCode == 200) {
@@ -178,23 +204,43 @@ class ApiService {
       throw Exception('Failed to load stats: ${response.body}');
     }
   }
+
+  Future<List<PendingAdvisor>> getPendingAdvisors() async {
+    final session = Supabase.instance.client.auth.currentSession;
+    final response = await http.get(
+      Uri.parse('$_apiBaseUrl/admin/pending-advisors'),
+      headers: {'Authorization': 'Bearer ${session?.accessToken}'},
+    );
+
+    if (response.statusCode == 200) {
+      final List data = json.decode(response.body)['data'];
+      return data.map((item) => PendingAdvisor.fromJson(item)).toList();
+    }
+    throw Exception('Failed to load pending advisors');
+  }
+
+  Future<void> approveAdvisor(String id) async {
+    final session = Supabase.instance.client.auth.currentSession;
+    final response = await http.post(
+      Uri.parse('$_apiBaseUrl/admin/approve-advisor/$id'),
+      headers: {'Authorization': 'Bearer ${session?.accessToken}'},
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Approval failed: ${response.body}');
+    }
+  }
 }
 
-
-// --- 3. THEME MANAGEMENT ---
 final themeNotifier = ValueNotifier<ThemeMode>(ThemeMode.dark);
 
 class AppThemes {
   static final ThemeData darkTheme = ThemeData.dark().copyWith(
-    colorScheme: ThemeData
-        .dark()
-        .colorScheme
-        .copyWith(
+    colorScheme: ThemeData.dark().colorScheme.copyWith(
       primary: const Color(0xFF3B82F6),
       secondary: Colors.green.shade400,
       error: Colors.red.shade400,
       surface: const Color(0xFF2B3544),
-      // Card background
       onSurface: Colors.white,
     ),
     scaffoldBackgroundColor: const Color(0xFF1F2937),
@@ -202,9 +248,12 @@ class AppThemes {
       backgroundColor: Color(0xFF1F2937),
       elevation: 0,
       titleTextStyle: TextStyle(
-          color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+        color: Colors.white,
+        fontSize: 20,
+        fontWeight: FontWeight.bold,
+      ),
     ),
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       color: const Color(0xFF2B3544),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
@@ -227,8 +276,6 @@ class AppThemes {
   );
 }
 
-
-// --- 4. APP INITIALIZATION & ROUTING ---
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Supabase.initialize(
@@ -273,11 +320,12 @@ class _AuthGateState extends State<AuthGate> {
   Future<Map<String, dynamic>?> _getProfileData() async {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return null;
-    final response = await Supabase.instance.client
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .maybeSingle();
+    final response =
+        await Supabase.instance.client
+            .from('profiles')
+            .select('role')
+            .eq('id', user.id)
+            .maybeSingle();
     return response;
   }
 
@@ -292,7 +340,8 @@ class _AuthGateState extends State<AuthGate> {
             builder: (context, profileSnapshot) {
               if (profileSnapshot.connectionState == ConnectionState.waiting) {
                 return const Scaffold(
-                    body: Center(child: CircularProgressIndicator()));
+                  body: Center(child: CircularProgressIndicator()),
+                );
               }
               final profile = profileSnapshot.data;
               if (profile == null) {
@@ -312,8 +361,6 @@ class _AuthGateState extends State<AuthGate> {
   }
 }
 
-// --- 5. ADMIN DASHBOARD SCREEN ---
-
 class AdminHomeScreen extends StatefulWidget {
   const AdminHomeScreen({Key? key}) : super(key: key);
 
@@ -322,6 +369,51 @@ class AdminHomeScreen extends StatefulWidget {
 }
 
 class _AdminHomeScreenState extends State<AdminHomeScreen> {
+  int _selectedIndex = 0;
+
+  final List<Widget> _pages = [
+    const DashboardTab(),
+    const AdvisorVerificationTab(),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: IndexedStack(index: _selectedIndex, children: _pages),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: (index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+        },
+        selectedItemColor: Theme.of(context).colorScheme.primary,
+        unselectedItemColor: Colors.grey,
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.dashboard_outlined),
+            activeIcon: Icon(Icons.dashboard),
+            label: 'Dashboard',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.how_to_reg_outlined),
+            activeIcon: Icon(Icons.how_to_reg),
+            label: 'Approvals',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class DashboardTab extends StatefulWidget {
+  const DashboardTab({Key? key}) : super(key: key);
+
+  @override
+  State<DashboardTab> createState() => _DashboardTabState();
+}
+
+class _DashboardTabState extends State<DashboardTab> {
   final ApiService _apiService = ApiService();
   AdminStats? _stats;
   bool _isLoading = true;
@@ -339,6 +431,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       setState(() {
         _stats = stats;
         _isLoading = false;
+        _error = null;
       });
     } catch (e) {
       setState(() {
@@ -385,10 +478,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
-          child: Text('Error: $_error', style: TextStyle(color: Theme
-              .of(context)
-              .colorScheme
-              .error)),
+          child: Text(
+            'Error: $_error',
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
         ),
       );
     }
@@ -400,7 +493,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     return ListView(
       padding: const EdgeInsets.all(16.0),
       children: [
-        // --- Segment 1: User & Advisor Growth ---
         _buildSectionHeader('User & Advisor Growth'),
         _buildUserGrowthGrid(stats.userGrowth),
         const SizedBox(height: 24),
@@ -410,45 +502,48 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           barColor: Colors.blue.shade300,
         ),
         const SizedBox(height: 24),
-
-        // --- Segment 2: Trade & Performance ---
         _buildSectionHeader('Trade & Performance'),
         _buildTradePerformanceGrid(stats.tradePerformance),
         const SizedBox(height: 24),
-        // RESPONSIVE WIDGET: Changes from Row to Column on small screens
         LayoutBuilder(
           builder: (context, constraints) {
             if (constraints.maxWidth < 600) {
-              // Use a Column for narrow screens
               return Column(
                 children: [
                   TradeStatusPieChart(
-                      breakdown: stats.tradePerformance.breakdown),
+                    breakdown: stats.tradePerformance.breakdown,
+                  ),
                   const SizedBox(height: 16),
                   TopListCard(
                     title: 'Top Stocks',
-                    items: stats.tradePerformance.mostTradedStocks
-                        .map((s) => '${s.symbol}: ${s.tradeCount} trades')
-                        .toList(),
+                    items:
+                        stats.tradePerformance.mostTradedStocks
+                            .map((s) => '${s.symbol}: ${s.tradeCount} trades')
+                            .toList(),
                     icon: Icons.show_chart,
                   ),
                 ],
               );
             } else {
-              // Use a Row for wider screens
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(child: TradeStatusPieChart(
-                      breakdown: stats.tradePerformance.breakdown)),
+                  Expanded(
+                    child: TradeStatusPieChart(
+                      breakdown: stats.tradePerformance.breakdown,
+                    ),
+                  ),
                   const SizedBox(width: 16),
-                  Expanded(child: TopListCard(
-                    title: 'Top Stocks',
-                    items: stats.tradePerformance.mostTradedStocks
-                        .map((s) => '${s.symbol}: ${s.tradeCount} trades')
-                        .toList(),
-                    icon: Icons.show_chart,
-                  )),
+                  Expanded(
+                    child: TopListCard(
+                      title: 'Top Stocks',
+                      items:
+                          stats.tradePerformance.mostTradedStocks
+                              .map((s) => '${s.symbol}: ${s.tradeCount} trades')
+                              .toList(),
+                      icon: Icons.show_chart,
+                    ),
+                  ),
                 ],
               );
             }
@@ -457,14 +552,13 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         const SizedBox(height: 24),
         TopListCard(
           title: 'Top Advisors (by Hit Rate)',
-          items: stats.tradePerformance.topPerformingAdvisors
-              .map((a) => '${a.name}: ${a.hitRate.toStringAsFixed(1)}%')
-              .toList(),
+          items:
+              stats.tradePerformance.topPerformingAdvisors
+                  .map((a) => '${a.name}: ${a.hitRate.toStringAsFixed(1)}%')
+                  .toList(),
           icon: Icons.person_search,
         ),
         const SizedBox(height: 24),
-
-        // --- Segment 3: Platform Activity ---
         _buildSectionHeader('Platform Activity'),
         CustomBarChart(
           title: 'New Trades (Last 7 Days)',
@@ -480,38 +574,45 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       padding: const EdgeInsets.only(bottom: 16.0),
       child: Text(
         title,
-        style: Theme
-            .of(context)
-            .textTheme
-            .headlineSmall
-            ?.copyWith(fontWeight: FontWeight.bold),
+        style: Theme.of(
+          context,
+        ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
       ),
     );
   }
 
-  // RESPONSIVE WIDGET: GridView now adapts its column count based on screen width
   Widget _buildUserGrowthGrid(UserGrowthStats userStats) {
     final stats = [
-      StatCard(title: 'Total Users',
-          value: userStats.totalUsers.toString(),
-          icon: Icons.people),
-      StatCard(title: 'Total Advisors',
-          value: userStats.totalAdvisors.toString(),
-          icon: Icons.supervised_user_circle),
-      StatCard(title: 'Total Subs',
-          value: userStats.totalSubscriptions.toString(),
-          icon: Icons.subscriptions),
-      StatCard(title: 'New Users (30d)',
-          value: userStats.newUsersLast30d.toString(),
-          icon: Icons.person_add),
-      StatCard(title: 'New Advisors (30d)',
-          value: userStats.newAdvisorsLast30d.toString(),
-          icon: Icons.group_add),
+      StatCard(
+        title: 'Total Users',
+        value: userStats.totalUsers.toString(),
+        icon: Icons.people,
+      ),
+      StatCard(
+        title: 'Total Advisors',
+        value: userStats.totalAdvisors.toString(),
+        icon: Icons.supervised_user_circle,
+      ),
+      StatCard(
+        title: 'Total Subs',
+        value: userStats.totalSubscriptions.toString(),
+        icon: Icons.subscriptions,
+      ),
+      StatCard(
+        title: 'New Users (30d)',
+        value: userStats.newUsersLast30d.toString(),
+        icon: Icons.person_add,
+      ),
+      StatCard(
+        title: 'New Advisors (30d)',
+        value: userStats.newAdvisorsLast30d.toString(),
+        icon: Icons.group_add,
+      ),
     ];
 
     return GridView.builder(
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 200, // Each item can be max 200px wide
+        maxCrossAxisExtent: 200,
         mainAxisSpacing: 16,
         crossAxisSpacing: 16,
         childAspectRatio: 1.2,
@@ -523,17 +624,20 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     );
   }
 
-  // THIS IS THE UPDATED WIDGET
   Widget _buildTradePerformanceGrid(TradePerformanceStats tradeStats) {
     final stats = [
-      StatCard(title: 'Total Trades',
-          value: tradeStats.totalTrades.toString(),
-          icon: Icons.swap_horiz,
-          valueColor: Colors.amber.shade300),
-      StatCard(title: 'Open Trades',
-          value: tradeStats.breakdown['open']?.toString() ?? '0',
-          icon: Icons.hourglass_top,
-          valueColor: Colors.blue.shade300),
+      StatCard(
+        title: 'Total Trades',
+        value: tradeStats.totalTrades.toString(),
+        icon: Icons.swap_horiz,
+        valueColor: Colors.amber.shade300,
+      ),
+      StatCard(
+        title: 'Open Trades',
+        value: tradeStats.breakdown['open']?.toString() ?? '0',
+        icon: Icons.hourglass_top,
+        valueColor: Colors.blue.shade300,
+      ),
     ];
 
     return GridView.builder(
@@ -541,8 +645,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         maxCrossAxisExtent: 250,
         mainAxisSpacing: 16,
         crossAxisSpacing: 16,
-        // FIX: Changed from 1.8 to 1.2 to give the card more vertical space.
-        // An aspect ratio of width/height. > 1 is wider, < 1 is taller.
         childAspectRatio: 1.2,
       ),
       itemCount: stats.length,
@@ -553,9 +655,165 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   }
 }
 
-// --- 6. CUSTOM WIDGETS FOR THE DASHBOARD ---
+class AdvisorVerificationTab extends StatefulWidget {
+  const AdvisorVerificationTab({Key? key}) : super(key: key);
 
-// --- in 6. CUSTOM WIDGETS FOR THE DASHBOARD ---
+  @override
+  State<AdvisorVerificationTab> createState() => _AdvisorVerificationTabState();
+}
+
+class _AdvisorVerificationTabState extends State<AdvisorVerificationTab> {
+  final ApiService _apiService = ApiService();
+  List<PendingAdvisor>? _advisors;
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAdvisors();
+  }
+
+  Future<void> _loadAdvisors() async {
+    setState(() => _isLoading = true);
+    try {
+      final list = await _apiService.getPendingAdvisors();
+      setState(() {
+        _advisors = list;
+        _isLoading = false;
+        _error = null;
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _handleApproval(String id) async {
+    try {
+      await _apiService.approveAdvisor(id);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Advisor approved successfully')),
+      );
+      _loadAdvisors();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Approval failed: $e'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Verify Advisors'),
+        actions: [
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadAdvisors),
+        ],
+      ),
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return Center(child: Text('Error: $_error'));
+    }
+    if (_advisors == null || _advisors!.isEmpty) {
+      return const Center(child: Text('No pending advisors found.'));
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadAdvisors,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _advisors!.length,
+        itemBuilder: (context, index) {
+          final advisor = _advisors![index];
+          return Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: Theme.of(
+                          context,
+                        ).colorScheme.primary.withOpacity(0.2),
+                        child: Text(
+                          advisor.name.isNotEmpty ? advisor.name[0] : '?',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              advisor.name,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(advisor.email),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 24),
+                  _buildDetailRow('License Type', advisor.licenseType),
+                  _buildDetailRow('Reg Number', advisor.registrationNumber),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green.shade600,
+                      ),
+                      onPressed: () => _handleApproval(advisor.id),
+                      child: const Text('Approve Advisor'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.grey)),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w500)),
+        ],
+      ),
+    );
+  }
+}
 
 class StatCard extends StatelessWidget {
   final String title;
@@ -580,12 +838,12 @@ class StatCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, size: 28,
-                color: theme.colorScheme.onSurface.withOpacity(0.7)),
+            Icon(
+              icon,
+              size: 28,
+              color: theme.colorScheme.onSurface.withOpacity(0.7),
+            ),
             const Spacer(),
-            // FIX: Wrapped the Text in an Expanded and FittedBox.
-            // Expanded ensures it takes available space, and FittedBox
-            // scales the text down to fit perfectly, preventing overflow.
             Expanded(
               child: FittedBox(
                 fit: BoxFit.scaleDown,
@@ -596,11 +854,11 @@ class StatCard extends StatelessWidget {
                     fontWeight: FontWeight.bold,
                     color: valueColor ?? theme.colorScheme.onSurface,
                   ),
-                  maxLines: 1, // Ensure it doesn't wrap, FittedBox will handle scaling
+                  maxLines: 1,
                 ),
               ),
             ),
-            const SizedBox(height: 4), // A little space between value and title
+            const SizedBox(height: 4),
             Text(
               title,
               style: theme.textTheme.bodyMedium?.copyWith(
@@ -631,8 +889,10 @@ class CustomBarChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final maxValue = data.isNotEmpty ? data.map((d) => d.count).reduce((a,
-        b) => a > b ? a : b) : 0;
+    final maxValue =
+        data.isNotEmpty
+            ? data.map((d) => d.count).reduce((a, b) => a > b ? a : b)
+            : 0;
 
     return Card(
       child: Padding(
@@ -653,19 +913,24 @@ class CustomBarChart extends StatelessWidget {
                       getTooltipItem: (group, groupIndex, rod, rodIndex) {
                         return BarTooltipItem(
                           rod.toY.round().toString(),
-                          TextStyle(color: theme.colorScheme.onSurface,
-                              fontWeight: FontWeight.bold),
+                          TextStyle(
+                            color: theme.colorScheme.onSurface,
+                            fontWeight: FontWeight.bold,
+                          ),
                         );
                       },
                     ),
                   ),
                   titlesData: FlTitlesData(
                     leftTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false)),
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
                     topTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false)),
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
                     rightTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false)),
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
                     bottomTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
@@ -677,7 +942,9 @@ class CustomBarChart extends StatelessWidget {
                               child: Text(
                                 DateFormat('d/M').format(data[index].date),
                                 style: TextStyle(
-                                    color: theme.hintColor, fontSize: 12),
+                                  color: theme.hintColor,
+                                  fontSize: 12,
+                                ),
                               ),
                             );
                           }
@@ -692,30 +959,35 @@ class CustomBarChart extends StatelessWidget {
                     drawVerticalLine: false,
                     getDrawingHorizontalLine: (value) {
                       return FlLine(
-                          color: Colors.grey.withOpacity(0.2), strokeWidth: 1);
+                        color: Colors.grey.withOpacity(0.2),
+                        strokeWidth: 1,
+                      );
                     },
                   ),
                   borderData: FlBorderData(show: false),
-                  barGroups: data
-                      .asMap()
-                      .map((index, dataPoint) =>
-                      MapEntry(
-                        index,
-                        BarChartGroupData(
-                          x: index,
-                          barRods: [
-                            BarChartRodData(
-                              toY: dataPoint.count.toDouble(),
-                              color: barColor,
-                              width: 16,
-                              borderRadius: const BorderRadius.vertical(
-                                  top: Radius.circular(4)),
+                  barGroups:
+                      data
+                          .asMap()
+                          .map(
+                            (index, dataPoint) => MapEntry(
+                              index,
+                              BarChartGroupData(
+                                x: index,
+                                barRods: [
+                                  BarChartRodData(
+                                    toY: dataPoint.count.toDouble(),
+                                    color: barColor,
+                                    width: 16,
+                                    borderRadius: const BorderRadius.vertical(
+                                      top: Radius.circular(4),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ],
-                        ),
-                      ))
-                      .values
-                      .toList(),
+                          )
+                          .values
+                          .toList(),
                 ),
               ),
             ),
@@ -730,12 +1002,14 @@ class TradeStatusPieChart extends StatelessWidget {
   final Map<String, int> breakdown;
 
   const TradeStatusPieChart({Key? key, required this.breakdown})
-      : super(key: key);
+    : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final totalClosed = (breakdown['profit'] ?? 0) + (breakdown['loss'] ?? 0) +
+    final totalClosed =
+        (breakdown['profit'] ?? 0) +
+        (breakdown['loss'] ?? 0) +
         (breakdown['cost'] ?? 0);
 
     if (totalClosed == 0) {
@@ -746,39 +1020,40 @@ class TradeStatusPieChart extends StatelessWidget {
             children: [
               Text("Closed Trades", style: theme.textTheme.titleLarge),
               const SizedBox(height: 16),
-              const Expanded(
-                  child: Center(child: Text("No closed trades yet."))),
+              const SizedBox(
+                height: 120,
+                child: Center(child: Text("No closed trades yet.")),
+              ),
             ],
           ),
         ),
       );
     }
 
-
     List<PieChartSectionData> sections = [
       PieChartSectionData(
-          value: breakdown['profit']?.toDouble() ?? 0,
-          title: '${((breakdown['profit'] ?? 0) / totalClosed * 100)
-              .toStringAsFixed(0)}%',
-          color: theme.colorScheme.secondary,
-          radius: 50,
-          titleStyle: const TextStyle(fontWeight: FontWeight.bold)
+        value: breakdown['profit']?.toDouble() ?? 0,
+        title:
+            '${((breakdown['profit'] ?? 0) / totalClosed * 100).toStringAsFixed(0)}%',
+        color: theme.colorScheme.secondary,
+        radius: 50,
+        titleStyle: const TextStyle(fontWeight: FontWeight.bold),
       ),
       PieChartSectionData(
-          value: breakdown['loss']?.toDouble() ?? 0,
-          title: '${((breakdown['loss'] ?? 0) / totalClosed * 100)
-              .toStringAsFixed(0)}%',
-          color: theme.colorScheme.error,
-          radius: 50,
-          titleStyle: const TextStyle(fontWeight: FontWeight.bold)
+        value: breakdown['loss']?.toDouble() ?? 0,
+        title:
+            '${((breakdown['loss'] ?? 0) / totalClosed * 100).toStringAsFixed(0)}%',
+        color: theme.colorScheme.error,
+        radius: 50,
+        titleStyle: const TextStyle(fontWeight: FontWeight.bold),
       ),
       PieChartSectionData(
-          value: breakdown['cost']?.toDouble() ?? 0,
-          title: '${((breakdown['cost'] ?? 0) / totalClosed * 100)
-              .toStringAsFixed(0)}%',
-          color: Colors.amber.shade400,
-          radius: 50,
-          titleStyle: const TextStyle(fontWeight: FontWeight.bold)
+        value: breakdown['cost']?.toDouble() ?? 0,
+        title:
+            '${((breakdown['cost'] ?? 0) / totalClosed * 100).toStringAsFixed(0)}%',
+        color: Colors.amber.shade400,
+        radius: 50,
+        titleStyle: const TextStyle(fontWeight: FontWeight.bold),
       ),
     ];
 
@@ -849,10 +1124,7 @@ class TopListCard extends StatelessWidget {
             if (items.isEmpty)
               const Text('No data available.')
             else
-              ...items
-                  .asMap()
-                  .entries
-                  .map((entry) {
+              ...items.asMap().entries.map((entry) {
                 int index = entry.key;
                 String itemText = entry.value;
                 return ListTile(
@@ -860,8 +1132,10 @@ class TopListCard extends StatelessWidget {
                   leading: CircleAvatar(
                     radius: 16,
                     backgroundColor: theme.colorScheme.primary.withOpacity(0.2),
-                    child: Text('${index + 1}', style: TextStyle(color: theme
-                        .colorScheme.primary)),
+                    child: Text(
+                      '${index + 1}',
+                      style: TextStyle(color: theme.colorScheme.primary),
+                    ),
                   ),
                   title: Text(itemText),
                 );
@@ -872,10 +1146,6 @@ class TopListCard extends StatelessWidget {
     );
   }
 }
-
-
-// --- 7. AUTHENTICATION & ACCESS SCREENS ---
-// (These are kept from your original file)
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -901,10 +1171,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(error.message),
-            backgroundColor: Theme
-                .of(context)
-                .colorScheme
-                .error,
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
       }
@@ -932,8 +1199,10 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text('Admin Login', style: TextStyle(
-                    fontSize: 24, fontWeight: FontWeight.bold)),
+                const Text(
+                  'Admin Login',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 24),
                 TextFormField(
                   controller: _emailController,
@@ -950,9 +1219,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 _isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : ElevatedButton(
-                  onPressed: _signIn,
-                  child: const Text('Sign In'),
-                ),
+                      onPressed: _signIn,
+                      child: const Text('Sign In'),
+                    ),
               ],
             ),
           ),
@@ -977,22 +1246,22 @@ class AccessDeniedScreen extends StatelessWidget {
               Icon(
                 Icons.gpp_bad_outlined,
                 size: 80,
-                color: Theme
-                    .of(context)
-                    .colorScheme
-                    .error,
+                color: Theme.of(context).colorScheme.error,
               ),
               const SizedBox(height: 24),
-              const Text('Access Denied',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+              const Text(
+                'Access Denied',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 16),
               const Text(
-                  'You do not have administrative privileges to access this dashboard.',
-                  textAlign: TextAlign.center),
+                'You do not have administrative privileges to access this dashboard.',
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: 32),
               ElevatedButton(
-                onPressed: () async =>
-                await Supabase.instance.client.auth.signOut(),
+                onPressed:
+                    () async => await Supabase.instance.client.auth.signOut(),
                 child: const Text('Logout'),
               ),
             ],
@@ -1002,4 +1271,3 @@ class AccessDeniedScreen extends StatelessWidget {
     );
   }
 }
-
