@@ -310,7 +310,7 @@ class AdminApp extends StatelessWidget {
 }
 
 class AuthGate extends StatefulWidget {
-  const AuthGate({Key? key}) : super(key: key);
+  const AuthGate({super.key});
 
   @override
   State<AuthGate> createState() => _AuthGateState();
@@ -362,7 +362,7 @@ class _AuthGateState extends State<AuthGate> {
 }
 
 class AdminHomeScreen extends StatefulWidget {
-  const AdminHomeScreen({Key? key}) : super(key: key);
+  const AdminHomeScreen({super.key});
 
   @override
   State<AdminHomeScreen> createState() => _AdminHomeScreenState();
@@ -407,7 +407,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 }
 
 class DashboardTab extends StatefulWidget {
-  const DashboardTab({Key? key}) : super(key: key);
+  const DashboardTab({super.key});
 
   @override
   State<DashboardTab> createState() => _DashboardTabState();
@@ -656,7 +656,7 @@ class _DashboardTabState extends State<DashboardTab> {
 }
 
 class AdvisorVerificationTab extends StatefulWidget {
-  const AdvisorVerificationTab({Key? key}) : super(key: key);
+  const AdvisorVerificationTab({super.key});
 
   @override
   State<AdvisorVerificationTab> createState() => _AdvisorVerificationTabState();
@@ -751,7 +751,7 @@ class _AdvisorVerificationTabState extends State<AdvisorVerificationTab> {
                       CircleAvatar(
                         backgroundColor: Theme.of(
                           context,
-                        ).colorScheme.primary.withOpacity(0.2),
+                        ).colorScheme.primary.withValues(alpha: .2),
                         child: Text(
                           advisor.name.isNotEmpty ? advisor.name[0] : '?',
                           style: TextStyle(
@@ -822,12 +822,12 @@ class StatCard extends StatelessWidget {
   final Color? valueColor;
 
   const StatCard({
-    Key? key,
+    super.key,
     required this.title,
     required this.value,
     required this.icon,
     this.valueColor,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -841,7 +841,7 @@ class StatCard extends StatelessWidget {
             Icon(
               icon,
               size: 28,
-              color: theme.colorScheme.onSurface.withOpacity(0.7),
+              color: theme.colorScheme.onSurface.withValues(alpha: .7),
             ),
             const Spacer(),
             Expanded(
@@ -862,7 +862,7 @@ class StatCard extends StatelessWidget {
             Text(
               title,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.7),
+                color: theme.colorScheme.onSurface.withValues(alpha: .7),
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -880,11 +880,11 @@ class CustomBarChart extends StatelessWidget {
   final Color barColor;
 
   const CustomBarChart({
-    Key? key,
+    super.key,
     required this.title,
     required this.data,
     required this.barColor,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -959,7 +959,7 @@ class CustomBarChart extends StatelessWidget {
                     drawVerticalLine: false,
                     getDrawingHorizontalLine: (value) {
                       return FlLine(
-                        color: Colors.grey.withOpacity(0.2),
+                        color: Colors.grey.withValues(alpha: .2),
                         strokeWidth: 1,
                       );
                     },
@@ -1001,8 +1001,7 @@ class CustomBarChart extends StatelessWidget {
 class TradeStatusPieChart extends StatelessWidget {
   final Map<String, int> breakdown;
 
-  const TradeStatusPieChart({Key? key, required this.breakdown})
-    : super(key: key);
+  const TradeStatusPieChart({super.key, required this.breakdown});
 
   @override
   Widget build(BuildContext context) {
@@ -1104,11 +1103,11 @@ class TopListCard extends StatelessWidget {
   final IconData icon;
 
   const TopListCard({
-    Key? key,
+    super.key,
     required this.title,
     required this.items,
     required this.icon,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1131,7 +1130,7 @@ class TopListCard extends StatelessWidget {
                   contentPadding: EdgeInsets.zero,
                   leading: CircleAvatar(
                     radius: 16,
-                    backgroundColor: theme.colorScheme.primary.withOpacity(0.2),
+                    backgroundColor: theme.colorScheme.primary.withValues(alpha: .2),
                     child: Text(
                       '${index + 1}',
                       style: TextStyle(color: theme.colorScheme.primary),
@@ -1232,7 +1231,7 @@ class _LoginScreenState extends State<LoginScreen> {
 }
 
 class AccessDeniedScreen extends StatelessWidget {
-  const AccessDeniedScreen({Key? key}) : super(key: key);
+  const AccessDeniedScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
