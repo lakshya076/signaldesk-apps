@@ -145,7 +145,7 @@ class ClosedTradesAnalysis extends StatelessWidget {
                   'Risk/Reward Ratio',
                   trade.riskReward,
                   valueStyle: TextStyle(
-                    color: profitColor,
+                    color: Colors.black87,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),

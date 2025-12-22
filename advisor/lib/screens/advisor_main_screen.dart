@@ -39,7 +39,7 @@ class AdvisorMainScreenState extends State<AdvisorMainScreen> {
   Timer? _reconnectTimer;
   bool _isWsConnected = false;
   final Set<String> _wsSubscriptions = {};
-  final String _wsUrl = "wss://576ac19b6c0f.ngrok-free.app/ws/prices";
+  final String _wsUrl = "wss://08227a9e086c.ngrok-free.app/ws/prices";
 
   @override
   void initState() {

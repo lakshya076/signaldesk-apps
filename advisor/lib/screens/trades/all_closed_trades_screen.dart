@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:signaldesk_advisor/models/trade_card_model.dart';
+import 'package:signaldesk_advisor/services/cache_service.dart';
 import 'package:signaldesk_advisor/view_models/closed_trade_card_view_model.dart';
 import 'package:signaldesk_advisor/widgets/closed_trade_card.dart';
 import 'package:signaldesk_advisor/widgets/filter_chip_row.dart';
@@ -19,12 +20,34 @@ class _AllClosedTradesScreenState extends State<AllClosedTradesScreen> {
   bool _isLoading = true;
   String _selectedFilter = 'All';
   RealtimeChannel? _tradesChannel;
+  final _cacheService = CacheService(); // Added
 
   @override
   void initState() {
     super.initState();
-    _fetchTradeCards();
+    _initializeTrades();
     _setupRealtimeSubscription();
+  }
+
+  /// Load cached data first, then fetch from network
+  Future<void> _initializeTrades() async {
+    await _loadCachedTrades();
+    await _fetchTradeCards();
+  }
+
+  /// Load closed trades from the central cache
+  Future<void> _loadCachedTrades() async {
+    final tradesCache = await _cacheService.getTradesCache();
+    if (tradesCache.closedTrades.isNotEmpty && mounted) {
+      debugPrint(
+        "AllClosedTrades: Loaded ${tradesCache.closedTrades.length} trades from cache.",
+      );
+      setState(() {
+        _tradeCards = tradesCache.closedTrades;
+        _isLoading = false;
+      });
+      _filterAndRefresh();
+    }
   }
 
   void _setupRealtimeSubscription() {
@@ -46,7 +69,9 @@ class _AllClosedTradesScreenState extends State<AllClosedTradesScreen> {
           ),
           callback: (payload) {
             if (mounted) {
-              _fetchTradeCards();
+              _fetchTradeCards(
+                isRealtime: true,
+              ); // Fetch without loading spinner
             }
           },
         )
@@ -59,7 +84,12 @@ class _AllClosedTradesScreenState extends State<AllClosedTradesScreen> {
     super.dispose();
   }
 
-  Future<void> _fetchTradeCards() async {
+  Future<void> _fetchTradeCards({bool isRealtime = false}) async {
+    // If loading from cache, don't show spinner unless it's the very first load
+    if (_tradeCards.isEmpty && !isRealtime) {
+      setState(() => _isLoading = true);
+    }
+
     try {
       final advisorId = Supabase.instance.client.auth.currentUser!.id;
       final response = await Supabase.instance.client
@@ -68,6 +98,9 @@ class _AllClosedTradesScreenState extends State<AllClosedTradesScreen> {
           .eq('advisor_id', advisorId)
           .neq('status', 'open')
           .order('created_at', ascending: false);
+
+      // Save fresh data to cache
+      await _cacheService.saveClosedTrades(response as List<dynamic>);
 
       final cards =
           (response as List).map((e) => TradeCardModel.fromJson(e)).toList();
@@ -118,7 +151,10 @@ class _AllClosedTradesScreenState extends State<AllClosedTradesScreen> {
             return false;
           }).toList();
     }
-    setState(() {});
+    // Use setState to rebuild the widget tree with the filtered list
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   @override

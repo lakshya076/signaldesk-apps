@@ -115,7 +115,7 @@ class ClosedTradeCardWidget extends StatelessWidget {
                 _buildStat(
                   'Risk/Reward',
                   trade.riskReward,
-                  theme.colorScheme.secondary,
+                  Colors.black87,
                   context,
                   alignment: CrossAxisAlignment.end,
                 ),

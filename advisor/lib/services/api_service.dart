@@ -5,7 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 
 class ApiService {
-  final String _apiBaseUrl = 'https://576ac19b6c0f.ngrok-free.app';
+  final String _apiBaseUrl = 'https://08227a9e086c.ngrok-free.app';
 
   Future<Map<String, Stock>> getAllStocks() async {
     final response = await http.get(Uri.parse('$_apiBaseUrl/get-all-stocks'));
@@ -173,6 +173,31 @@ class ApiService {
       // This will catch network errors and 503 exceptions
       debugPrint('Market check failed: $e');
       return false;
+    }
+  }
+
+  Future<Map<String, dynamic>> getInstrumentList() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_apiBaseUrl/get-instrument-list'),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['status'] == 'success') {
+          return data['data'] as Map<String, dynamic>;
+        } else {
+          throw Exception(
+            'Failed to load instrument list: ${data['detail'] ?? 'Unknown error'}',
+          );
+        }
+      } else {
+        throw Exception(
+          'Failed to load instrument list: Server error ${response.statusCode}',
+        );
+      }
+    } catch (e) {
+      throw Exception('Failed to load instrument list: $e');
     }
   }
 }

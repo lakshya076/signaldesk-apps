@@ -6,11 +6,11 @@ import 'package:signaldesk_advisor/models/stock.dart';
 import 'package:signaldesk_advisor/models/watchlist_item.dart';
 import 'package:signaldesk_advisor/services/api_service.dart';
 import 'package:signaldesk_advisor/widgets/watchlist_tile.dart';
+import 'package:signaldesk_advisor/services/cache_service.dart';
 
 class WatchlistScreen extends StatefulWidget {
   final Function(Stock) onCreateTrade;
-
-  final Stream<Map<String, dynamic>>? priceStream; // Updated type
+  final Stream<Map<String, dynamic>>? priceStream;
 
   const WatchlistScreen({
     super.key,
@@ -25,58 +25,92 @@ class WatchlistScreen extends StatefulWidget {
 class WatchlistScreenState extends State<WatchlistScreen> {
   List<WatchlistItem> _watchlist = [];
   Map<String, double> _livePrices = {};
+  Map<String, double> _prevClosePrices = {};
   bool _isLoading = true;
   final _apiService = ApiService();
+  final _cacheService = CacheService();
   StreamSubscription? _priceSubscription;
 
   @override
   void initState() {
     super.initState();
+    _initializeWatchlist();
+  }
+
+  /// Loads cached data first, then fetches network data.
+  Future<void> _initializeWatchlist() async {
+    await _loadAllCaches();
     _fetchWatchlist();
     _listenToPriceStream();
+  }
+
+  /// Loads all price caches from the CacheService.
+  Future<void> _loadAllCaches() async {
+    final priceCache = await _cacheService.getPriceCaches();
+    if (mounted) {
+      setState(() {
+        _livePrices = priceCache.livePrices;
+        _prevClosePrices = priceCache.prevClosePrices;
+      });
+      debugPrint(
+        "Watchlist: Loaded ${priceCache.livePrices.length} cached prices.",
+      );
+      debugPrint(
+        "Watchlist: Loaded ${priceCache.prevClosePrices.length} cached 'prev_close' prices.",
+      );
+    }
   }
 
   @override
   void didUpdateWidget(covariant WatchlistScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // If the stream instance changes, re-subscribe
     if (widget.priceStream != oldWidget.priceStream) {
       _listenToPriceStream();
     }
   }
 
   void _listenToPriceStream() {
-    _priceSubscription?.cancel(); // Cancel old one if exists
+    _priceSubscription?.cancel();
     _priceSubscription = widget.priceStream?.listen((priceData) {
       final symbol = priceData['symbol'] as String?;
       final ltp = (priceData['ltp'] as num?)?.toDouble();
 
-      if (symbol != null && ltp != null) {
-        if (mounted) {
-          // Only update if the price is different
-          if (_livePrices[symbol] != ltp) {
-            setState(() {
-              _livePrices[symbol] = ltp;
-            });
-          }
+      if (symbol != null && ltp != null && mounted) {
+        if (_livePrices[symbol] != ltp) {
+          setState(() {
+            _livePrices[symbol] = ltp;
+          });
+          // Save updated prices to cache
+          _cacheService.saveLivePrices(_livePrices);
         }
       }
     });
   }
 
-  // Renamed to be more descriptive and avoid conflict
+  /// Public method that can be called from the GlobalKey
+  Future<void> fetchWatchlistPublic() async {
+    await _internalFetchWatchlist();
+  }
+
+  Future<void> _fetchWatchlist() async {
+    await _internalFetchWatchlist();
+  }
+
   Future<void> _internalFetchWatchlist() async {
+    // Only show loading spinner on the very first load
     if (_watchlist.isEmpty) {
       setState(() => _isLoading = true);
     }
+
     try {
+      // 1. Fetch user's watchlist symbols from Supabase (this is fast)
       final advisorId = Supabase.instance.client.auth.currentUser!.id;
       final response = await Supabase.instance.client
           .from('watchlists')
           .select('id, stock_symbol')
           .eq('advisor_id', advisorId);
 
-      final watchlistItems =
+      final supabaseItems =
           (response as List)
               .map(
                 (item) => WatchlistItem(
@@ -86,39 +120,121 @@ class WatchlistScreenState extends State<WatchlistScreen> {
               )
               .toList();
 
-      //final allStocks = await _apiService.getAllStocks();
-      final List<Future<Map<String, dynamic>?>> stockDataFutures = [];
-      for (var item in watchlistItems) {
-        stockDataFutures.add(_apiService.getStockData(item.stockSymbol));
+      // 2. Try to load static data from the shared instrument cache
+      final cachedData = await _cacheService.getInstrumentCache();
+      Map<String, dynamic>? allStocksMap;
+
+      if (cachedData != null) {
+        allStocksMap = cachedData;
       }
 
-      final List<Map<String, dynamic>?> allStockData = await Future.wait(
-        stockDataFutures,
-      );
-
-      final List<String> symbolsToSubscribe = [];
-      final List<WatchlistItem> updatedWatchlist = [];
-
-      for (int i = 0; i < watchlistItems.length; i++) {
-        final item = watchlistItems[i];
-        final stockDataJson = allStockData[i];
-
-        if (stockDataJson != null) {
-          // Create the Stock object from the JSON
-          item.stockData = Stock.fromJson(item.stockSymbol, stockDataJson);
-          updatedWatchlist.add(item); // Add to the new list
-          symbolsToSubscribe.add(item.stockSymbol);
-        } else {
-          debugPrint("Could not find data for ${item.stockSymbol}");
+      // 3. (CACHE-FIRST BUILD) Instantly build the UI with cached data
+      if (allStocksMap != null) {
+        debugPrint("Watchlist: Building UI from cache...");
+        final List<WatchlistItem> cachedWatchlist = [];
+        for (var item in supabaseItems) {
+          final stockDetails = allStocksMap[item.stockSymbol];
+          if (stockDetails != null) {
+            item.stockData = Stock.fromJson(
+              item.stockSymbol,
+              stockDetails as Map<String, dynamic>,
+            );
+            cachedWatchlist.add(item);
+          }
+        }
+        if (mounted) {
+          setState(() {
+            _watchlist = cachedWatchlist;
+            _isLoading = false; // <-- UI appears now
+          });
         }
       }
 
+      // 4. (NETWORK FETCH) Check which symbols need fresh data
+      final List<Future<Map<String, dynamic>?>> stockDataFutures = [];
+      final List<String> symbolsToFetch = [];
+      final bool isPrevCloseCacheStale = _cacheService.isPrevCloseCacheStale();
+
+      for (var item in supabaseItems) {
+        // Only fetch if cache is stale OR this symbol is missing from the prevClose cache
+        if (isPrevCloseCacheStale ||
+            !_prevClosePrices.containsKey(item.stockSymbol)) {
+          stockDataFutures.add(_apiService.getStockData(item.stockSymbol));
+          symbolsToFetch.add(item.stockSymbol);
+        }
+      }
+
+      debugPrint(
+        "Watchlist: Fetching fresh data for ${symbolsToFetch.length} symbols.",
+      );
+
+      final List<Map<String, dynamic>?> networkStockData = await Future.wait(
+        stockDataFutures,
+      );
+
+      // Map results back to symbols
+      final Map<String, Map<String, dynamic>> fetchedDataMap = {};
+      for (int i = 0; i < symbolsToFetch.length; i++) {
+        if (networkStockData[i] != null) {
+          fetchedDataMap[symbolsToFetch[i]] = networkStockData[i]!;
+        }
+      }
+
+      final List<String> symbolsToSubscribe = [];
+      final List<WatchlistItem> updatedWatchlist = [];
+      bool newPrevCloseData = false;
+
+      // 5. (MERGE DATA) Create the final list
+      for (int i = 0; i < supabaseItems.length; i++) {
+        final item = supabaseItems[i];
+        final stockDataJson =
+            fetchedDataMap[item.stockSymbol]; // Data from network (if any)
+
+        if (stockDataJson != null) {
+          // We got new data from network
+          item.stockData = Stock.fromJson(item.stockSymbol, stockDataJson);
+
+          if (item.stockData?.ltp != null) {
+            _livePrices[item.stockSymbol] = item.stockData!.ltp!;
+          }
+          if (item.stockData?.prevCloseRedis != null) {
+            _prevClosePrices[item.stockSymbol] = item.stockData!.prevCloseRedis!;
+            newPrevCloseData = true;
+          }
+          updatedWatchlist.add(item);
+        } else {
+          // No network data needed or fetch failed. Use the cached version.
+          final existingItem = _watchlist.firstWhere(
+            (w) => w.stockSymbol == item.stockSymbol,
+            orElse: () => item, // Fallback
+          );
+
+          // Ensure stockData is at least the cached version
+          item.stockData = existingItem.stockData;
+
+          if (item.stockData != null) {
+            // We have at least the static data
+            updatedWatchlist.add(item);
+          }
+        }
+        symbolsToSubscribe.add(item.stockSymbol); // Subscribe regardless
+      }
+
+      // 6. Update UI with fresh prices and save caches
       if (mounted) {
         setState(() {
-          _watchlist = updatedWatchlist; // Use the new list
-          _isLoading = false;
+          _watchlist = updatedWatchlist;
+          _isLoading = false; // <-- Hides spinner if cache was missed
         });
+        _cacheService.saveLivePrices(_livePrices); // Save latest live prices
+
+        // Only save/update timestamp if we actually got new data or cache was stale
+        if (newPrevCloseData ||
+            (isPrevCloseCacheStale && symbolsToFetch.isNotEmpty)) {
+          _cacheService.savePrevClosePrices(_prevClosePrices);
+        }
       }
+
       final mainScreenState =
           context.findAncestorStateOfType<AdvisorMainScreenState>();
       mainScreenState?.wsSubscribe(symbolsToSubscribe);
@@ -130,16 +246,6 @@ class WatchlistScreenState extends State<WatchlistScreen> {
         setState(() => _isLoading = false);
       }
     }
-  }
-
-  // Public method that can be called from the GlobalKey
-  Future<void> fetchWatchlistPublic() async {
-    await _internalFetchWatchlist();
-  }
-
-  // This is the original method name, now it calls the new internal one
-  Future<void> _fetchWatchlist() async {
-    await _internalFetchWatchlist();
   }
 
   Future<void> _showDeleteConfirmationDialog(WatchlistItem item) async {
@@ -191,7 +297,14 @@ class WatchlistScreenState extends State<WatchlistScreen> {
                     ),
                   );
 
-                  _fetchWatchlist();
+                  // Optimistic UI update: remove from list locally
+                  setState(() {
+                    _watchlist.removeWhere((w) => w.id == item.id);
+                    _livePrices.remove(stockSymbol);
+                    _prevClosePrices.remove(stockSymbol);
+                  });
+                  _cacheService.saveLivePrices(_livePrices);
+                  _cacheService.savePrevClosePrices(_prevClosePrices);
                 } catch (e) {
                   Navigator.of(dialogContext).pop();
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -214,25 +327,34 @@ class WatchlistScreenState extends State<WatchlistScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // The Scaffold has been completely removed from this widget.
     return _isLoading
         ? const Center(child: CircularProgressIndicator())
+        : _watchlist.isEmpty
+        ? const Center(
+          child: Text(
+            "Your watchlist is empty.\nAdd stocks using the '+' button.",
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 16, color: Colors.grey),
+          ),
+        )
         : ListView.builder(
           padding: const EdgeInsets.only(bottom: 80),
           itemCount: _watchlist.length,
           itemBuilder: (context, index) {
             final item = _watchlist[index];
 
-            final lastPrice = item.stockData?.lastPrice ?? 0.0;
+            // Use our new map as the primary source for prevClose
+            final prevClose = _prevClosePrices[item.stockSymbol] ?? 0.0;
 
+            // Use livePrice if available, otherwise ltp, otherwise fallback to prevClose
             final livePrice =
                 _livePrices[item.stockSymbol] ??
                 item.stockData?.ltp ??
-                lastPrice;
+                prevClose; // Use prevClose as ultimate fallback
 
-            final change = livePrice - lastPrice;
+            final change = livePrice - prevClose;
             final percentChange =
-                lastPrice != 0 ? (change / lastPrice) * 100 : 0.0;
+                prevClose != 0 ? (change / prevClose) * 100 : 0.0;
 
             return InkWell(
               onLongPress: () {

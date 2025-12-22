@@ -3,6 +3,7 @@ import 'package:signaldesk_advisor/screens/advisor_main_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:signaldesk_advisor/models/stock.dart';
 import 'package:signaldesk_advisor/services/api_service.dart';
+import 'package:signaldesk_advisor/services/cache_service.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -13,6 +14,7 @@ class SearchScreen extends StatefulWidget {
 
 class _SearchScreenState extends State<SearchScreen> {
   final ApiService _apiService = ApiService();
+  final _cacheService = CacheService();
   Map<String, Stock> _allStocks = {};
   List<Stock> _searchResults = [];
   final _searchController = TextEditingController();
@@ -25,16 +27,27 @@ class _SearchScreenState extends State<SearchScreen> {
     _searchController.addListener(_onSearchChanged);
   }
 
+  /// Loads stocks from cache if available and valid, otherwise fetches from API.
   Future<void> _loadAllStocks() async {
+    setState(() => _isLoading = true);
+
     try {
-      final stocks = await _apiService.getAllStocks();
-      if (mounted) {
-        setState(() {
-          _allStocks = stocks;
-          _searchResults = stocks.values.toList();
-          _isLoading = false;
-        });
+      // 1. Try loading from cache
+      final cachedData = await _cacheService.getInstrumentCache();
+      if (cachedData != null) {
+        debugPrint("Loading instruments from cache...");
+        _processStockData(cachedData);
+        return; // Successfully loaded from cache
       }
+
+      // 2. Cache is invalid or missing, fetch from network
+      debugPrint("Cache miss or expired. Fetching instruments from API...");
+      final Map<String, dynamic> stockDataMap =
+          await _apiService.getInstrumentList();
+
+      // 3. Process and save to cache
+      _processStockData(stockDataMap);
+      await _cacheService.saveInstrumentCache(stockDataMap);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -45,20 +58,43 @@ class _SearchScreenState extends State<SearchScreen> {
     }
   }
 
-  void _onSearchChanged() {
-    final query = _searchController.text.toUpperCase();
-    setState(() {
-      _searchResults =
-          query.isEmpty
-              ? _allStocks.values.toList()
-              : _allStocks.values
-                  .where(
-                    (stock) =>
-                        stock.symbol.toUpperCase().contains(query) ||
-                        stock.name.toUpperCase().contains(query),
-                  )
-                  .toList();
+  /// Helper function to parse the JSON map into Stock objects and update state.
+  void _processStockData(Map<String, dynamic> stockDataMap) {
+    final stocks = stockDataMap.map((symbol, data) {
+      return MapEntry(symbol, Stock.fromJson(symbol, data));
     });
+
+    if (mounted) {
+      setState(() {
+        _allStocks = stocks;
+        // Pre-populate search results with all stocks
+        _searchResults =
+            _searchController.text.isEmpty
+                ? _allStocks.values.toList()
+                : _filterStocks(_searchController.text);
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _onSearchChanged() {
+    setState(() {
+      _searchResults = _filterStocks(_searchController.text);
+    });
+  }
+
+  List<Stock> _filterStocks(String query) {
+    if (query.isEmpty) {
+      return _allStocks.values.toList();
+    }
+    final upperQuery = query.toUpperCase();
+    return _allStocks.values
+        .where(
+          (stock) =>
+              stock.symbol.toUpperCase().contains(upperQuery) ||
+              stock.name.toUpperCase().contains(upperQuery),
+        )
+        .toList();
   }
 
   Future<void> _addToWatchlist(String symbol) async {
