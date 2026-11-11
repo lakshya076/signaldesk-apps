@@ -1,3 +1,4 @@
+import 'package:signaldesk_user/core/config.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -11,8 +12,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Supabase.initialize(
-    url: "https://wvnfmsgnqydelrrpwfic.supabase.co",
-    anonKey: "sb_publishable_v2xTPguM2YQqSMOI1QHA3Q_MlQdj7Zu",
+    url: supabaseUrl,
+    anonKey: supabaseAnonKey,
   );
 
   final themeProvider = ThemeProvider();

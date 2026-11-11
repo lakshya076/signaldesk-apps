@@ -280,8 +280,8 @@ class AppThemes {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Supabase.initialize(
-    url: "https://wvnfmsgnqydelrrpwfic.supabase.co",
-    anonKey: "sb_publishable_v2xTPguM2YQqSMOI1QHA3Q_MlQdj7Zu",
+    url: supabaseUrl,
+    anonKey: supabaseAnonKey,
   );
   final prefs = await SharedPreferences.getInstance();
   final isDarkMode = prefs.getBool('isDarkMode') ?? true;
