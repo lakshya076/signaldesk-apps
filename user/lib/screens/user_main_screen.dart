@@ -1,3 +1,4 @@
+import 'package:signaldesk_user/core/config.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -30,7 +31,7 @@ class _UserMainScreenState extends State<UserMainScreen> {
   Timer? _reconnectTimer;
   bool _isWsConnected = false;
   final Set<String> _wsSubscriptions = {};
-  final String _wsUrl = "wss://915f8170b107.ngrok-free.app/ws/prices";
+  final String _wsUrl = wsPricesUrl;
 
   @override
   void initState() {

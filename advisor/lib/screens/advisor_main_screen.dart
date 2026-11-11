@@ -1,3 +1,4 @@
+import 'package:signaldesk_advisor/core/config.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
@@ -39,7 +40,7 @@ class AdvisorMainScreenState extends State<AdvisorMainScreen> {
   Timer? _reconnectTimer;
   bool _isWsConnected = false;
   final Set<String> _wsSubscriptions = {};
-  final String _wsUrl = "wss://08227a9e086c.ngrok-free.app/ws/prices";
+  final String _wsUrl = wsPricesUrl;
 
   @override
   void initState() {

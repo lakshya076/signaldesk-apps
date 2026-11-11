@@ -1,3 +1,4 @@
+import 'package:signaldesk_advisor/core/config.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:signaldesk_advisor/models/stock.dart';
@@ -5,7 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 
 class ApiService {
-  final String _apiBaseUrl = 'https://08227a9e086c.ngrok-free.app';
+  final String _apiBaseUrl = apiBaseUrl;
 
   Future<Map<String, Stock>> getAllStocks() async {
     final response = await http.get(Uri.parse('$_apiBaseUrl/get-all-stocks'));

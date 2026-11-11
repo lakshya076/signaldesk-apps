@@ -1,3 +1,4 @@
+import 'package:signaldesk_admin/core/config.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -184,7 +185,7 @@ class PendingAdvisor {
 }
 
 class ApiService {
-  final String _apiBaseUrl = 'https://e7d6114c6c3d.ngrok-free.app';
+  final String _apiBaseUrl = apiBaseUrl;
 
   Future<AdminStats> getDashboardStats() async {
     final session = Supabase.instance.client.auth.currentSession;

@@ -1,9 +1,10 @@
+import 'package:signaldesk_user/core/config.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  final String _apiBaseUrl = 'https://915f8170b107.ngrok-free.app';
+  final String _apiBaseUrl = apiBaseUrl;
 
   Future<Map<String, double>> getLivePrices(List<String> symbols) async {
     if (symbols.isEmpty) return {};
