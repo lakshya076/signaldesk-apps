@@ -80,8 +80,7 @@ class WatchlistScreenState extends State<WatchlistScreen> {
           setState(() {
             _livePrices[symbol] = ltp;
           });
-          // Save updated prices to cache
-          _cacheService.saveLivePrices(_livePrices);
+          // Not saved to disk here: writing the cache on every tick blocked the UI. Saved on dispose.
         }
       }
     });
@@ -322,6 +321,7 @@ class WatchlistScreenState extends State<WatchlistScreen> {
   @override
   void dispose() {
     _priceSubscription?.cancel();
+    _cacheService.saveLivePrices(_livePrices);
     super.dispose();
   }
 

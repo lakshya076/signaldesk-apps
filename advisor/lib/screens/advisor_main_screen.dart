@@ -38,6 +38,8 @@ class AdvisorMainScreenState extends State<AdvisorMainScreen> {
       StreamController.broadcast();
   late final Stream<Map<String, dynamic>> _priceStream;
   Timer? _reconnectTimer;
+  final Map<String, Map<String, dynamic>> _pendingPrices = {};
+  Timer? _flushTimer;
   bool _isWsConnected = false;
   final Set<String> _wsSubscriptions = {};
   final String _wsUrl = wsPricesUrl;
@@ -57,8 +59,18 @@ class AdvisorMainScreenState extends State<AdvisorMainScreen> {
   void dispose() {
     _reconnectTimer?.cancel();
     _channel?.sink.close();
+    _flushTimer?.cancel();
     _priceStreamController.close();
     super.dispose();
+  }
+
+  // Every screen rebuilds per price update, so batch ticks: at most ~4 updates/s per stock
+  // however fast the feed is. Without this a busy stock freezes the UI.
+  void _flushPrices() {
+    _flushTimer = null;
+    if (_priceStreamController.isClosed) return;
+    _pendingPrices.values.forEach(_priceStreamController.add);
+    _pendingPrices.clear();
   }
 
   void _connectWebSocket() {
@@ -80,7 +92,8 @@ class AdvisorMainScreenState extends State<AdvisorMainScreen> {
           try {
             final data = json.decode(message) as Map<String, dynamic>;
             if (data.containsKey('symbol') && data.containsKey('ltp')) {
-              _priceStreamController.add(data);
+              _pendingPrices[data['symbol'] as String] = data; // keep the latest tick per stock
+              _flushTimer ??= Timer(const Duration(milliseconds: 250), _flushPrices);
             } else if (data.containsKey('status')) {
               debugPrint("WebSocket status: ${data['message']}");
             }
